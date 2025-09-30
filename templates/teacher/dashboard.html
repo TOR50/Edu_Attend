@@ -1,0 +1,29 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block extra_head %}
+    <link rel="stylesheet" href="{% static 'css/teacher_dashboard.css' %}">
+{% endblock %}
+
+{% block title %}Teacher Dashboard{% endblock %}
+
+{% block content %}
+<div class="dashboard-header">
+    <h1>Teacher Dashboard</h1>
+    <p>Welcome back! Here are your classes.</p>
+</div>
+
+<div class="card">
+    <div class="card-header">My Classes</div>
+    <ul class="class-list">
+        {% for c in classes %}
+            <li class="class-list-item">
+                <span class="class-name">Class {{ c.grade }}-{{ c.section }}</span>
+                <a href="{% url 'take_attendance' c.id %}" class="btn-primary">Take Attendance</a>
+            </li>
+        {% empty %}
+            <li class="class-list-item">No classes assigned</li>
+        {% endfor %}
+    </ul>
+</div>
+{% endblock %}

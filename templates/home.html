@@ -1,0 +1,11 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="p-4 text-center">
+  <h1>Welcome to Edu Attend</h1>
+  {% if user.is_authenticated %}
+    <p><a class="btn btn-primary" href="{% url 'login_success' %}">Go to your dashboard</a></p>
+  {% else %}
+    <p><a class="btn btn-primary" href="/accounts/login/">Login</a> or <a class="btn btn-secondary" href="/accounts/signup/">Sign up</a></p>
+  {% endif %}
+</div>
+{% endblock %}

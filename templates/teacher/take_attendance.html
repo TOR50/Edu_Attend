@@ -1,0 +1,251 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'css/take_attendance.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Take attendance - Class {{ school_class.grade }}-{{ school_class.section }}</h1>
+  <p class="text-muted mb-0">Encodings available: {{ enc_count }}</p>
+</div>
+
+<div id="page-data" data-class-id="{{ school_class.id }}" hidden></div>
+
+<div class="attendance-container">
+  <div class="camera-container">
+    <div class="video-card">
+      <div class="video-wrapper">
+        <video id="video" playsinline autoplay></video>
+        <canvas id="overlay"></canvas>
+      </div>
+      <div class="controls">
+        <div class="action-buttons">
+          <button id="startBtn" class="btn-custom btn-start">Start Camera</button>
+          <button id="stopBtn" class="btn-custom btn-stop" disabled>Stop Camera</button>
+        </div>
+        <a class="btn-diagnostics" target="_blank" href="{% url 'class_diagnostics' %}">Diagnostics</a>
+      </div>
+    </div>
+    <pre id="log">Camera is off.</pre>
+  </div>
+
+  <div class="student-list-container">
+    <div class="student-list-card">
+      <h5>Students</h5>
+      <ul id="students">
+        {% for s in students %}
+        <li class="student-item {% if s.pk in present_ids %}present{% else %}absent{% endif %}" data-id="{{ s.pk }}">
+          <span class="student-name">{{ s.get_full_name }}</span>
+          <span class="status-badge {% if s.pk in present_ids %}present{% else %}absent{% endif %}">
+            {% if s.pk in present_ids %}Present{% else %}Absent{% endif %}
+          </span>
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+  const video = document.getElementById('video');
+  const overlay = document.getElementById('overlay');
+  const ctx = overlay.getContext('2d');
+  const startBtn = document.getElementById('startBtn');
+  const stopBtn = document.getElementById('stopBtn');
+  const logEl = document.getElementById('log');
+  const classId = parseInt(document.getElementById('page-data').dataset.classId);
+  let running = false;
+  let stream = null;
+
+  function setOverlaySize() {
+    const videoRect = video.getBoundingClientRect();
+    const videoAspectRatio = video.videoWidth / video.videoHeight;
+    const containerAspectRatio = videoRect.width / videoRect.height;
+
+    let newWidth, newHeight, newLeft, newTop;
+
+    if (videoAspectRatio > containerAspectRatio) {
+        // Video is wider than container, letterboxed (bars top/bottom)
+        newWidth = videoRect.width;
+        newHeight = newWidth / videoAspectRatio;
+        newLeft = 0;
+        newTop = (videoRect.height - newHeight) / 2;
+    } else {
+        // Video is taller than container, pillarboxed (bars left/right)
+        newHeight = videoRect.height;
+        newWidth = newHeight * videoAspectRatio;
+        newTop = 0;
+        newLeft = (videoRect.width - newWidth) / 2;
+    }
+
+    overlay.style.width = `${newWidth}px`;
+    overlay.style.height = `${newHeight}px`;
+    overlay.style.top = `${newTop}px`;
+    overlay.style.left = `${newLeft}px`;
+
+    overlay.width = video.videoWidth;
+    overlay.height = video.videoHeight;
+  }
+
+  video.addEventListener('loadedmetadata', () => {
+    setOverlaySize();
+    video.play();
+  });
+  window.addEventListener('resize', setOverlaySize);
+
+
+  function csrftoken() {
+    const name = 'csrftoken=';
+    const parts = document.cookie.split(';');
+    for (let p of parts) {
+      p = p.trim();
+      if (p.startsWith(name)) return decodeURIComponent(p.substring(name.length));
+    }
+    return '';
+  }
+
+  async function start() {
+    log('Starting camera...');
+    startBtn.disabled = true;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 640 }, height: { ideal: 480 } }, audio: false });
+      video.srcObject = stream;
+      await new Promise(resolve => video.onloadedmetadata = resolve);
+      
+      running = true;
+      stopBtn.disabled = false;
+      log('Camera started. Recognizing...');
+      tick();
+    } catch (e) {
+      log('Camera error: ' + e);
+      startBtn.disabled = false;
+    }
+  }
+
+  function stop() {
+    log('Stopping camera...');
+    running = false;
+    stopBtn.disabled = true;
+    if (stream) {
+      stream.getTracks().forEach(t => t.stop());
+      stream = null;
+    }
+    video.srcObject = null;
+    video.removeAttribute('src');
+    ctx.clearRect(0, 0, overlay.width, overlay.height);
+    startBtn.disabled = false;
+    log('Camera is off.');
+  }
+
+  async function tick() {
+    if (!running) return;
+    
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const cctx = canvas.getContext('2d');
+    cctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+
+    try {
+      const res = await fetch('{% url "recognize_frame" %}', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': csrftoken(),
+        },
+        body: JSON.stringify({ image: dataUrl, class_id: classId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(JSON.stringify(data));
+      
+      renderDetections(data.detections || []);
+      updatePresent(data.matched || []);
+      
+      log(`Faces: ${data.faces_detected}. Matched: ${data.matched.length}.`);
+
+    } catch (e) {
+      log('Recognition error: ' + e);
+      if (String(e).includes('500')) {
+          stop();
+      }
+    }
+
+    if (running) {
+        setTimeout(tick, 800);
+    }
+  }
+
+  function renderDetections(dets) {
+    ctx.clearRect(0, 0, overlay.width, overlay.height);
+    if (!dets) return;
+
+    ctx.lineWidth = 3;
+    ctx.font = '16px "Roboto", sans-serif';
+    ctx.textBaseline = 'bottom';
+
+    for (const d of dets) {
+      const [t, r, b, l] = d.box;
+      const w = r - l;
+      const h = b - t;
+      
+      const isKnown = d.name && d.name !== 'Unknown';
+      ctx.strokeStyle = isKnown ? '#28a745' : '#dc3545';
+      ctx.fillStyle = isKnown ? '#28a745' : '#dc3545';
+
+      ctx.strokeRect(l, t, w, h);
+
+      const label = String(d.name || 'Unknown');
+      const confidence = (d.metric !== undefined && d.metric !== null) ? `(${(1-d.metric).toFixed(2)})` : '';
+      const txt = `${label} ${confidence}`;
+      
+      const pad = 5;
+      const textMetrics = ctx.measureText(txt);
+      const textWidth = textMetrics.width + pad * 2;
+      const textHeight = 22;
+
+      ctx.fillStyle = 'rgba(0,0,0,0.7)';
+      ctx.fillRect(l, t - textHeight, textWidth, textHeight);
+      
+      ctx.fillStyle = 'white';
+      ctx.fillText(txt, l + pad, t - 2);
+    }
+  }
+
+  function updatePresent(ids) {
+    for (const id of ids) {
+      const li = document.querySelector(`.student-item[data-id="${id}"]`);
+      if (!li) continue;
+      
+      if (li.classList.contains('absent')) {
+        li.classList.remove('absent');
+        li.classList.add('present');
+        
+        const badge = li.querySelector('.status-badge');
+        badge.classList.remove('absent');
+        badge.classList.add('present');
+        badge.textContent = 'Present';
+      }
+    }
+  }
+
+  function log(msg) {
+    logEl.textContent = String(msg);
+  }
+
+  startBtn.addEventListener('click', start);
+  stopBtn.addEventListener('click', stop);
+
+  // Ensure camera is stopped when leaving the page
+  window.addEventListener('beforeunload', () => {
+    if (running) {
+      stop();
+    }
+  });
+
+})();
+</script>
+{% endblock %}

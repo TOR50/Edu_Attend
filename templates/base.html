@@ -1,0 +1,77 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Edu-Attend{% endblock %}</title>
+    <link rel="stylesheet" href="{% static 'css/main.css' %}">
+    {% block extra_head %}{% endblock %}
+</head>
+<body>
+    <div class="wrapper">
+        <aside class="sidebar" id="sidebar">
+            <div class="logo">
+                Edu-Attend
+            </div>
+            <nav>
+                <ul>
+                    {% if user.role == 'admin' %}
+                    <li>
+                        <a href="{% url 'admin_dashboard' %}" class="{% if request.resolver_match.url_name == 'admin_dashboard' %}active{% endif %}">
+                            <img src="{% static 'images/icons/Dashboard.svg' %}" alt="Dashboard" class="icon">
+                            Dashboard
+                        </a>
+                    </li>
+                    {% else %}
+                    <li>
+                        <a href="{% url 'teacher_dashboard' %}" class="{% if request.resolver_match.url_name == 'teacher_dashboard' %}active{% endif %}">
+                            <img src="{% static 'images/icons/Dashboard.svg' %}" alt="Dashboard" class="icon">
+                            Dashboard
+                        </a>
+                    </li>
+                    <li>
+                        <a href="{% url 'take_attendance' 1 %}" class="{% if request.resolver_match.url_name == 'take_attendance' %}active{% endif %}">
+                            <img src="{% static 'images/icons/TakeAttendance.svg' %}" alt="Take Attendance" class="icon">
+                            Take Attendance
+                        </a>
+                    </li>
+                    {% endif %}
+                    <!-- Add other navigation links here -->
+                    <li class="logout-item">
+                        <a href="{% url 'logout_get' %}">
+                            <img src="{% static 'images/icons/logout.svg' %}" alt="Logout" class="icon">
+                            Logout
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+        </aside>
+
+        <main class="main-content">
+            <header class="header">
+                <button class="menu-toggle" id="menu-toggle">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+                </button>
+                <div class="user-info">
+                    Welcome, {{ user.username }}
+                </div>
+            </header>
+            <section class="content">
+                {% for message in messages %}
+                    <div class="alert alert-{{ message.tags }}">{{ message }}</div>
+                {% endfor %}
+                {% block content %}
+                {% endblock %}
+            </section>
+        </main>
+    </div>
+
+    <script>
+        document.getElementById('menu-toggle').addEventListener('click', function() {
+            document.getElementById('sidebar').classList.toggle('open');
+        });
+    </script>
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

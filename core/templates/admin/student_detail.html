@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+
+{% block title %}Student Details: {{ student.get_full_name }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'admin_dashboard' %}">Dashboard</a></li>
+            <li class="breadcrumb-item active" aria-current="page">{{ student.get_full_name }}</li>
+        </ol>
+    </nav>
+
+    <h2>Manage Student: {{ student.get_full_name }}</h2>
+    <hr>
+
+    <div class="row">
+        <!-- Student Info -->
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h4>Profile Information</h4>
+                </div>
+                <div class="card-body">
+                    {% if student.photo %}
+                        <img src="{{ student.photo.url }}" alt="Photo of {{ student.name }}" class="img-fluid rounded mb-3">
+                    {% else %}
+                        <div class="alert alert-warning">No primary photo uploaded.</div>
+                    {% endif %}
+                    <p><strong>Name:</strong> {{ student.get_full_name }}</p>
+                    <p><strong>Class:</strong> Class {{ student.school_class.grade }}-{{ student.school_class.section }}</p>
+                    <p><strong>Roll Number:</strong> {{ student.roll_number }}</p>
+                    <p><strong>Email:</strong> {{ student.user.email }}</p>
+                    <a href="#" class="btn btn-sm btn-outline-primary">Edit Details (Not Implemented)</a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Face Samples -->
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h4>Face Recognition Samples ({{ samples.count }})</h4>
+                </div>
+                <div class="card-body">
+                    <p>Upload additional photos of the student in different lighting, angles, and expressions to improve recognition accuracy. The primary photo above is automatically used as a sample.</p>
+                    
+                    <!-- Upload Form -->
+                    <div class="mb-4 p-3 border rounded">
+                        <h5>Upload New Sample</h5>
+                        <form method="post" enctype="multipart/form-data">
+                            {% csrf_token %}
+                            <div class="mb-3">
+                                {{ form.image.label_tag }}
+                                {{ form.image }}
+                                {% if form.image.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {{ form.image.errors.as_text }}
+                                    </div>
+                                {% endif %}
+                            </div>
+                            <button type="submit" class="btn btn-primary">Upload Photo</button>
+                        </form>
+                    </div>
+
+                    <!-- Existing Samples -->
+                    <h5>Uploaded Samples</h5>
+                    <div class="row">
+                        {% for sample in samples %}
+                        <div class="col-md-4 mb-3">
+                            <div class="card h-100">
+                                <img src="{{ sample.image.url }}" class="card-img-top" alt="Face sample">
+                                <div class="card-body text-center">
+                                    <p class="card-text"><small>Uploaded: {{ sample.created_at|date:"Y-m-d H:i" }}</small></p>
+                                    <a href="{% url 'delete_face_sample' sample.id %}" class="btn btn-sm btn-danger" onclick="return confirm('Are you sure you want to delete this sample?');">Delete</a>
+                                </div>
+                            </div>
+                        </div>
+                        {% empty %}
+                        <div class="col">
+                            <p>No additional samples have been uploaded yet.</p>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
