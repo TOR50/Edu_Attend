@@ -1,7 +1,11 @@
 """
 This service handles all face recognition and encoding logic.
 """
-import face_recognition
+try:
+    import face_recognition  # optional
+except Exception:
+    face_recognition = None  # type: ignore
+
 import numpy as np
 from .models import Student, FaceSample, AttendanceRecord, SchoolClass, AcademicYear
 from django.utils import timezone
@@ -21,6 +25,9 @@ def load_known_faces_for_class(class_id: int):
     except SchoolClass.DoesNotExist:
         return [], []
 
+    # If face_recognition isn't available, skip loading encodings from images.
+    if face_recognition is None:
+        return [], []
 
     for student in students:
         # Use the primary face encoding first if it exists
@@ -50,6 +57,10 @@ def find_matches_in_frame(frame_rgb, known_face_encodings, known_face_metadata, 
     Recognizes faces in a single video frame and returns match data.
     Does NOT modify the database.
     """
+    # If face_recognition isn't available, no detections can be made
+    if face_recognition is None:
+        return []
+
     # Find all the faces and face encodings in the current frame of video
     face_locations = face_recognition.face_locations(frame_rgb)
     face_encodings = face_recognition.face_encodings(frame_rgb, face_locations)

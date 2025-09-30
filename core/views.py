@@ -235,7 +235,8 @@ def mark_present(request: HttpRequest, student_id: int) -> JsonResponse:
     if not class_id:
         return JsonResponse({"ok": False, "error": "Student not in a class"}, status=400)
     
-    recognition_service.mark_attendance_for_matches([student_id], class_id)
+    # Pass a default confidence of 1.0 for manual marking
+    recognition_service.mark_attendance_for_matches([(student_id, 1.0)], class_id)
     return JsonResponse({"ok": True})
 
 
