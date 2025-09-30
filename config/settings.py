@@ -76,9 +76,9 @@ USE_TZ = True
 
 STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
-STATICFILES_DIRS = [
-    BASE_DIR / 'core' / 'static',
-]
+# Let Django collect app static files (e.g., core/static) automatically.
+# Add project-level static dirs here only if needed, e.g., BASE_DIR / 'static'.
+STATICFILES_DIRS: list[str] = []
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 MEDIA_URL = '/media/'
