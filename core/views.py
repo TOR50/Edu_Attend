@@ -18,6 +18,7 @@ from django.utils import timezone
 from .forms import CustomSignUpForm, StudentForm, FaceSampleForm, CustomLoginForm
 from .models import AttendanceRecord, SchoolClass, Student, Teacher, User, FaceSample, AcademicYear
 
+from PIL import Image
 try:
     import numpy as np
     import cv2
@@ -183,8 +184,14 @@ def recognize_frame(request: HttpRequest) -> JsonResponse:
     if not request.user.is_authenticated:
         return JsonResponse({"error": "Not authenticated"}, status=401)
 
-    if not all((face_recognition, cv2, np)):
-        return JsonResponse({"error": "Face recognition libraries not installed"}, status=500)
+    # If face recognition libs aren't available, return a graceful empty result
+    if (face_recognition is None) or (np is None):
+        return JsonResponse({
+            "faces_detected": 0,
+            "matched": [],
+            "detections": [],
+            "used_face_recognition": False,
+        })
 
     try:
         data = json.loads(request.body)
@@ -196,10 +203,12 @@ def recognize_frame(request: HttpRequest) -> JsonResponse:
     if not class_id:
         return JsonResponse({"error": "class_id is required"}, status=400)
 
-    # Convert image data to numpy array
-    frame_bytes = np.frombuffer(image_data, dtype=np.uint8)
-    frame = cv2.imdecode(frame_bytes, cv2.IMREAD_COLOR)
-    frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    # Decode the image using Pillow to avoid relying on cv2.imdecode
+    try:
+        image = Image.open(io.BytesIO(image_data)).convert('RGB')
+        frame_rgb = np.array(image)
+    except Exception:
+        return JsonResponse({"error": "Invalid image data"}, status=400)
 
     # Get known faces for the class
     known_face_encodings, known_face_metadata = _get_known_faces_for_class(class_id)
