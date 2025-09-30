@@ -3,5 +3,6 @@ Pillow>=10.0
 numpy>=1.26
 opencv-contrib-python>=4.8
 whitenoise>=6.5
+gunicorn>=21.2
 # Optional: install only if you have a working C++ toolchain
 # face_recognition>=1.3
