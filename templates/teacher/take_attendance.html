@@ -9,6 +9,7 @@
 <div class="page-header">
   <h1>Take attendance - Class {{ school_class.grade }}-{{ school_class.section }}</h1>
   <p class="text-muted mb-0">Encodings available: {{ enc_count }}</p>
+  <p id="notice" class="text-warning" style="margin-top:8px; display:none;"></p>
 </div>
 
 <div id="page-data" data-class-id="{{ school_class.id }}" hidden></div>
@@ -41,6 +42,9 @@
           <span class="status-badge {% if s.pk in present_ids %}present{% else %}absent{% endif %}">
             {% if s.pk in present_ids %}Present{% else %}Absent{% endif %}
           </span>
+          {% if not s.pk in present_ids %}
+          <button class="btn-custom" data-action="mark-present" data-student="{{ s.pk }}">Mark Present</button>
+          {% endif %}
         </li>
         {% endfor %}
       </ul>
@@ -161,6 +165,11 @@
       });
       const data = await res.json();
       if (!res.ok) throw new Error(JSON.stringify(data));
+      if (data && data.used_face_recognition === false) {
+        notice("Automatic face recognition is unavailable on this host. Use the 'Mark Present' buttons.");
+        stop();
+        return;
+      }
       
       renderDetections(data.detections || []);
       updatePresent(data.matched || []);
@@ -228,6 +237,10 @@
         badge.classList.remove('absent');
         badge.classList.add('present');
         badge.textContent = 'Present';
+
+        // Remove any mark-present button after marking
+        const btn = li.querySelector('button[data-action="mark-present"]');
+        if (btn) btn.remove();
       }
     }
   }
@@ -236,8 +249,33 @@
     logEl.textContent = String(msg);
   }
 
+  function notice(msg) {
+    const el = document.getElementById('notice');
+    el.textContent = msg;
+    el.style.display = 'block';
+  }
+
   startBtn.addEventListener('click', start);
   stopBtn.addEventListener('click', stop);
+
+  // Manual mark present handlers
+  document.getElementById('students').addEventListener('click', async (e) => {
+    const target = e.target;
+    if (target && target.matches('button[data-action="mark-present"]')) {
+      const studentId = target.getAttribute('data-student');
+      try {
+        const res = await fetch(`/core/api/mark-present/${studentId}/`, {
+          method: 'POST',
+          headers: { 'X-CSRFToken': csrftoken() },
+        });
+        const data = await res.json();
+        if (!res.ok || !data.ok) throw new Error(data.error || 'Request failed');
+        updatePresent([parseInt(studentId)]);
+      } catch (err) {
+        log('Mark present error: ' + err);
+      }
+    }
+  });
 
   // Ensure camera is stopped when leaving the page
   window.addEventListener('beforeunload', () => {
