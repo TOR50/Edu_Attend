@@ -2,5 +2,6 @@ Django>=5.0,<6.0
 Pillow>=10.0
 numpy>=1.26
 opencv-contrib-python>=4.8
+whitenoise>=6.5
 # Optional: install only if you have a working C++ toolchain
 # face_recognition>=1.3
