@@ -4,8 +4,15 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'dev-insecure-secret-key')
-DEBUG = True
-ALLOWED_HOSTS = ['127.0.0.1', 'localhost']
+# Toggle DEBUG via env: set DJANGO_DEBUG=false in production
+DEBUG = os.environ.get('DJANGO_DEBUG', 'true').lower() == 'true'
+
+# Allowed hosts can be provided as a comma-separated env var in production
+_allowed_hosts_env = os.environ.get('DJANGO_ALLOWED_HOSTS')
+ALLOWED_HOSTS = (
+    [h.strip() for h in _allowed_hosts_env.split(',') if h.strip()]
+    if _allowed_hosts_env else ['127.0.0.1', 'localhost']
+)
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -82,7 +89,11 @@ AUTH_USER_MODEL = 'core.User'
 LOGIN_REDIRECT_URL = '/accounts/login-success/'
 LOGOUT_REDIRECT_URL = '/accounts/login/'
 
-CSRF_TRUSTED_ORIGINS = [
-    'http://127.0.0.1',
-    'http://localhost',
-]
+_csrf_origins_env = os.environ.get('DJANGO_CSRF_TRUSTED_ORIGINS')
+CSRF_TRUSTED_ORIGINS = (
+    [o.strip() for o in _csrf_origins_env.split(',') if o.strip()]
+    if _csrf_origins_env else [
+        'http://127.0.0.1',
+        'http://localhost',
+    ]
+)
