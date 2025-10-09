@@ -86,7 +86,7 @@ STATIC_ROOT = BASE_DIR / 'staticfiles'
 # Let Django collect app static files (e.g., core/static) automatically.
 # Add project-level static dirs here only if needed, e.g., BASE_DIR / 'static'.
 STATICFILES_DIRS: list[str] = []
-if _WHITENOISE_AVAILABLE:
+if _WHITENOISE_AVAILABLE and not DEBUG:
     STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 MEDIA_URL = '/media/'

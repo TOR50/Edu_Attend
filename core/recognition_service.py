@@ -7,6 +7,7 @@ except Exception:
     face_recognition = None  # type: ignore
 
 import numpy as np
+from . import face_utils
 from .models import Student, FaceSample, AttendanceRecord, SchoolClass, AcademicYear
 from django.utils import timezone
 from django.db import transaction
@@ -41,14 +42,20 @@ def load_known_faces_for_class(class_id: int):
         # Then add encodings from all face samples
         for sample in student.samples.all():
             try:
-                image = face_recognition.load_image_file(sample.image.path)
-                # Assuming one face per sample for simplicity
-                encoding = face_recognition.face_encodings(image)[0]
-                known_face_encodings.append(encoding)
-                known_face_metadata.append({"student_id": student.pk, "name": student.get_full_name()})
-            except (IndexError, FileNotFoundError):
-                # Handle cases where a face isn't found or file is missing
+                with sample.image.open('rb') as handle:
+                    image_array = face_utils.image_to_array(handle)
+            except FileNotFoundError:
                 continue
+
+            if image_array is None:
+                continue
+
+            encoding = face_utils.extract_first_encoding(image_array)
+            if encoding is None:
+                continue
+
+            known_face_encodings.append(encoding)
+            known_face_metadata.append({"student_id": student.pk, "name": student.get_full_name()})
                 
     return known_face_encodings, known_face_metadata
 

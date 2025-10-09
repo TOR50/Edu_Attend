@@ -18,8 +18,11 @@
     <ul class="class-list">
         {% for c in classes %}
             <li class="class-list-item">
-                <span class="class-name">Class {{ c.grade }}-{{ c.section }}</span>
-                <a href="{% url 'take_attendance' c.id %}" class="btn-primary">Take Attendance</a>
+                <span class="class-name">Class {{ c.grade }}-{{ c.section }} ({{ c.academic_year }})</span>
+                <div class="class-actions">
+                    <a href="{% url 'take_attendance' c.id %}" class="btn-primary">Take Attendance</a>
+                    <a href="{% url 'attendance_overview' %}?class_id={{ c.id }}" class="btn-primary">View Attendance</a>
+                </div>
             </li>
         {% empty %}
             <li class="class-list-item">No classes assigned</li>

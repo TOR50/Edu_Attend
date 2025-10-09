@@ -61,7 +61,30 @@ Open http://127.0.0.1:8000 in your browser.
 Environment variables (recommended for production):
 
 - `DJANGO_SECRET_KEY` – overrides the default dev key
-- `ALLOWED_HOSTS` – set in `config/settings.py` for deployment
+- `DJANGO_ALLOWED_HOSTS` – comma-separated list mapped to `ALLOWED_HOSTS`
+- `DJANGO_DEBUG` – set to `false` in production
+- `DJANGO_CSRF_TRUSTED_ORIGINS` – comma-separated origins for HTTPS deployments
+
+## Academic year setup
+
+1. Sign in as an admin and open the Django admin (`/admin/`).
+2. Create one or more `AcademicYear` entries (e.g., `2025-2026`).
+3. Mark exactly one year as active by checking the **Is active** box—this drives attendance snapshots.
+4. Update classes to point to the currently active academic year if you import legacy data.
+
+## Assigning teachers to classes
+
+1. From the admin dashboard, create teacher user accounts (role = teacher).
+2. In the Django admin, open each teacher record and add them to the appropriate classes via the many-to-many selector.
+3. Teachers only see the classes assigned here; verify assignments whenever classes change grades or sections.
+
+## Production deployment notes
+
+- Set the environment variables listed above before starting the app.
+- Configure a persistent database and update `DATABASE_URL` or adjust `DATABASES` in `config/settings.py` accordingly.
+- Collect static assets (e.g., `python manage.py collectstatic`) and serve them via WhiteNoise or your web server.
+- Define `MEDIA_ROOT` storage (S3, Azure Blob, etc.) and grant write permissions so student photos are retained.
+- Run `python manage.py createsuperuser` in the production environment to seed the first admin.
 
 Static and media:
 
@@ -99,46 +122,3 @@ Small fixes and improvements are welcome. Please open an issue or a PR with a cl
 ## License
 
 Add a LICENSE file to clarify terms for use and distribution (e.g., MIT).
-
-    while True:
-        success, frame = video_capture.read()
-        if not success:
-            break
-        else:
-            # Find all faces and encodings in the current frame
-            face_locations = face_recognition.face_locations(frame)
-            face_encodings = face_recognition.face_encodings(frame, face_locations)
-
-            for face_encoding in face_encodings:
-                # See if the face is a match for the known face(s)
-                matches = face_recognition.compare_faces(known_faces, face_encoding)
-                name = "Unknown"
-
-                if True in matches:
-                    first_match_index = matches.index(True)
-                    name = known_names[first_match_index]
-                    # MARK THE STUDENT AS PRESENT IN THE DATABASE HERE
-                    # You can use another request or a background task
-
-                # ... (code to draw a box around the face and label it)
-
-            ret, buffer = cv2.imencode('.jpg', frame)
-            frame = buffer.tobytes()
-            yield (b'--frame\r\n'
-                   b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
-The Template (take_attendance.html): In the HTML, you simply use an <img> tag whose source points to this streaming view.
-
-HTML
-
-<h3>Live Camera Feed</h3>
-<img src="{% url 'video_feed' class_id=class.id %}" width="640" height="480">
-💻 Part 7: Frontend Development
-Use a simple, clean design. Bootstrap is excellent for this.
-
-Create a base.html template: This will contain the main structure, including the navbar, and will be extended by all other pages.
-
-Use Django Template Tags: Use {% extends 'base.html' %} and {% block content %} to build out individual pages.
-
-Make it Responsive: Use Bootstrap's grid system (container, row, col-md-6, etc.) to ensure the layout adapts to different screen sizes, making it usable on phones.
-
-Add JavaScript: For the attendance page, a little bit of JavaScript will be needed to periodically check for updates (which students have been marked present) and refresh the student list without a full page reload

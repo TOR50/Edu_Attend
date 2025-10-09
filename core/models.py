@@ -95,3 +95,17 @@ class AttendanceRecord(models.Model):
 
     def __str__(self) -> str:
         return f"{self.student} - {self.school_class} on {self.date}: {self.get_status_display()}"
+
+
+class ManualExcuseLog(models.Model):
+    teacher = models.ForeignKey(Teacher, on_delete=models.CASCADE, related_name='manual_excuse_logs')
+    student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name='manual_excuse_logs')
+    school_class = models.ForeignKey(SchoolClass, on_delete=models.CASCADE, related_name='manual_excuse_logs')
+    date = models.DateField(default=timezone.localdate)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        indexes = [models.Index(fields=('teacher', 'date'))]
+
+    def __str__(self) -> str:
+        return f"{self.teacher} excused {self.student} on {self.date}"

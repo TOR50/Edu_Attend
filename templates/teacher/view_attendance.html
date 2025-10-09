@@ -1,0 +1,366 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'css/view_attendance.css' %}">
+{% endblock %}
+
+{% block title %}Attendance Overview{% endblock %}
+
+{% block content %}
+<div class="attendance-view">
+  <div class="page-heading">
+    <div>
+      <h1>Attendance Overview</h1>
+      <p class="subtitle">Browse daily attendance, explore historical records, and keep track of every student in real time.</p>
+    </div>
+    <div class="controls">
+      {% if classes %}
+      <label for="classSelect" class="control-label">Class</label>
+      <select id="classSelect" class="control-select">
+        {% for c in classes %}
+        <option value="{{ c.id }}" {% if selected_class and selected_class.id == c.id %}selected{% endif %}>Class {{ c.grade }}-{{ c.section }} ({{ c.academic_year }})</option>
+        {% endfor %}
+      </select>
+      {% else %}
+      <span class="empty-note">No classes assigned yet.</span>
+      {% endif %}
+    </div>
+  </div>
+
+  {% if classes %}
+  <div class="dashboard-grid">
+    <section class="calendar-card">
+      <header class="calendar-header">
+        <button class="icon-button" id="prevMonth" aria-label="Previous month">&#10094;</button>
+        <div class="calendar-title">
+          <h2 id="calendarMonth"></h2>
+          <span id="calendarYear"></span>
+        </div>
+        <button class="icon-button" id="nextMonth" aria-label="Next month">&#10095;</button>
+      </header>
+      <div class="calendar-weekdays">
+        <span>Mon</span>
+        <span>Tue</span>
+        <span>Wed</span>
+        <span>Thu</span>
+        <span>Fri</span>
+        <span>Sat</span>
+        <span>Sun</span>
+      </div>
+      <div class="calendar-grid" id="calendarGrid"></div>
+    </section>
+
+    <section class="daily-card">
+      <header class="daily-header">
+        <div>
+          <h2 id="dailyTitle">Daily attendance</h2>
+          <p class="daily-date" id="dailyDate"></p>
+        </div>
+      </header>
+      <div class="summary-pills">
+        <div class="summary-pill present">Present <span id="countPresent">0</span></div>
+        <div class="summary-pill absent">Absent <span id="countAbsent">0</span></div>
+        <div class="summary-pill late">Late <span id="countLate">0</span></div>
+        <div class="summary-pill excused">Excused <span id="countExcused">0</span></div>
+      </div>
+      <ul class="daily-list" id="dailyList"></ul>
+    </section>
+  </div>
+
+  <section class="history-card">
+    <header class="history-header">
+      <div>
+        <h2>Student history</h2>
+        <p class="subtitle">Select a student to view their attendance over time.</p>
+      </div>
+      <div class="controls">
+        <label for="studentSelect" class="control-label">Student</label>
+        <select id="studentSelect" class="control-select">
+          {% for student in student_roster %}
+          <option value="{{ student.id }}">{{ student.name }}{% if student.roll_number %} ({{ student.roll_number }}){% endif %}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </header>
+    <div class="history-feed" id="historyFeed"></div>
+  </section>
+  {% else %}
+  <div class="empty-state">
+    <h2>No classes assigned yet</h2>
+    <p>Once a class is assigned to you, you&apos;ll be able to explore attendance insights right here.</p>
+  </div>
+  {% endif %}
+</div>
+
+{% if classes %}
+<div id="attendanceEndpoints"
+     data-summary-url="{% url 'attendance_summary_api' %}"
+     data-history-url="{% url 'attendance_student_history_api' 0 %}"
+     data-selected-class="{{ selected_class.id }}"
+     data-selected-date="{{ selected_date|date:'Y-m-d' }}">
+</div>
+{{ initial_payload|json_script:"attendance-initial" }}
+{{ student_roster|json_script:"attendance-students" }}
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+{% if classes %}
+<script>
+(function() {
+  const initialData = JSON.parse(document.getElementById('attendance-initial').textContent);
+  const rosterData = JSON.parse(document.getElementById('attendance-students').textContent);
+  const endpoints = document.getElementById('attendanceEndpoints');
+  const summaryUrl = endpoints.dataset.summaryUrl;
+  const historyUrlTemplate = endpoints.dataset.historyUrl;
+
+  const classSelect = document.getElementById('classSelect');
+  const studentSelect = document.getElementById('studentSelect');
+  const calendarMonth = document.getElementById('calendarMonth');
+  const calendarYear = document.getElementById('calendarYear');
+  const calendarGrid = document.getElementById('calendarGrid');
+  const prevMonth = document.getElementById('prevMonth');
+  const nextMonth = document.getElementById('nextMonth');
+  const dailyTitle = document.getElementById('dailyTitle');
+  const dailyDate = document.getElementById('dailyDate');
+  const dailyList = document.getElementById('dailyList');
+  const countPresent = document.getElementById('countPresent');
+  const countAbsent = document.getElementById('countAbsent');
+  const countLate = document.getElementById('countLate');
+  const countExcused = document.getElementById('countExcused');
+  const historyFeed = document.getElementById('historyFeed');
+
+  const weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+  let selectedClassId = parseInt(endpoints.dataset.selectedClass, 10);
+  let selectedDate = new Date(endpoints.dataset.selectedDate);
+  let visibleMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
+
+  const statusLabels = {
+    present: 'Present',
+    absent: 'Absent',
+    late: 'Late',
+    excused: 'Excused'
+  };
+
+  function formatDate(dateObj) {
+    return dateObj.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  }
+
+  function toISO(dateObj) {
+    const tzOffset = dateObj.getTimezoneOffset() * 60000;
+    return new Date(dateObj.getTime() - tzOffset).toISOString().slice(0, 10);
+  }
+
+  function buildHistoryUrl(studentId) {
+    return historyUrlTemplate.replace(/0(?=\/history\/)/, String(studentId));
+  }
+
+  function renderCalendar() {
+    calendarGrid.innerHTML = '';
+    const year = visibleMonth.getFullYear();
+    const month = visibleMonth.getMonth();
+
+    calendarMonth.textContent = visibleMonth.toLocaleDateString(undefined, { month: 'long' });
+    calendarYear.textContent = String(year);
+
+    const firstDay = new Date(year, month, 1);
+    const startOffset = (firstDay.getDay() + 6) % 7; // Monday = 0
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const totalCells = Math.ceil((startOffset + daysInMonth) / 7) * 7;
+
+    for (let cell = 0; cell < totalCells; cell++) {
+      const dayNumber = cell - startOffset + 1;
+      const cellElement = document.createElement('button');
+      cellElement.className = 'calendar-cell';
+      cellElement.type = 'button';
+
+      if (dayNumber < 1) {
+        const prevDate = new Date(year, month, dayNumber);
+        cellElement.classList.add('muted');
+        cellElement.textContent = String(prevDate.getDate());
+        cellElement.dataset.date = toISO(prevDate);
+      } else if (dayNumber > daysInMonth) {
+        const nextDate = new Date(year, month, dayNumber);
+        cellElement.classList.add('muted');
+        cellElement.textContent = String(nextDate.getDate());
+        cellElement.dataset.date = toISO(nextDate);
+      } else {
+        const cellDate = new Date(year, month, dayNumber);
+        cellElement.textContent = String(dayNumber);
+        cellElement.dataset.date = toISO(cellDate);
+
+        if (cellDate.toDateString() === new Date().toDateString()) {
+          cellElement.classList.add('today');
+        }
+        if (cellDate.toDateString() === selectedDate.toDateString()) {
+          cellElement.classList.add('selected');
+        }
+      }
+
+      cellElement.addEventListener('click', () => {
+        const target = new Date(cellElement.dataset.date);
+        selectedDate = target;
+        if (target.getMonth() !== visibleMonth.getMonth()) {
+          visibleMonth = new Date(target.getFullYear(), target.getMonth(), 1);
+          renderCalendar();
+        } else {
+          updateSelectedCell();
+        }
+        loadSummary();
+      });
+
+      calendarGrid.appendChild(cellElement);
+    }
+  }
+
+  function updateSelectedCell() {
+    calendarGrid.querySelectorAll('.calendar-cell').forEach((cell) => {
+      cell.classList.toggle('selected', cell.dataset.date === toISO(selectedDate));
+    });
+  }
+
+  function updateSummaryUI(payload) {
+    dailyTitle.textContent = `Class ${payload.class.label.split(' ')[1]} attendance`;
+    const displayDate = new Date(payload.date);
+    dailyDate.textContent = formatDate(displayDate);
+
+    countPresent.textContent = payload.summary.present ?? 0;
+    countAbsent.textContent = payload.summary.absent ?? 0;
+    countLate.textContent = payload.summary.late ?? 0;
+    countExcused.textContent = payload.summary.excused ?? 0;
+
+    dailyList.innerHTML = '';
+    if (!payload.students.length) {
+      const empty = document.createElement('li');
+      empty.className = 'daily-empty';
+      empty.textContent = 'No attendance recorded for this date yet.';
+      dailyList.appendChild(empty);
+      return;
+    }
+
+    payload.students.forEach((student) => {
+      const item = document.createElement('li');
+      item.className = 'daily-entry';
+      item.innerHTML = `
+        <div class="daily-info">
+          <span class="daily-name">${student.name}</span>
+          ${student.roll_number ? `<span class="daily-roll">${student.roll_number}</span>` : ''}
+        </div>
+        <span class="status-chip ${student.status}">${statusLabels[student.status] || student.status}</span>
+      `;
+      dailyList.appendChild(item);
+    });
+  }
+
+  async function loadSummary() {
+    const params = new URLSearchParams({
+      class_id: String(selectedClassId),
+      date: toISO(selectedDate),
+    });
+    try {
+      const response = await fetch(`${summaryUrl}?${params.toString()}`);
+      if (!response.ok) throw new Error('Unable to load attendance');
+      const payload = await response.json();
+      updateSummaryUI(payload);
+    } catch (err) {
+      dailyList.innerHTML = '';
+      const errorItem = document.createElement('li');
+      errorItem.className = 'daily-empty error';
+      errorItem.textContent = err.message || 'Attendance could not be loaded.';
+      dailyList.appendChild(errorItem);
+    }
+  }
+
+  function renderHistory(records) {
+    historyFeed.innerHTML = '';
+    if (!records.length) {
+      const empty = document.createElement('div');
+      empty.className = 'history-empty';
+      empty.textContent = 'No attendance records found for this student yet.';
+      historyFeed.appendChild(empty);
+      return;
+    }
+
+    records.forEach((record) => {
+      const card = document.createElement('article');
+      card.className = 'history-entry';
+      const formattedDate = new Date(record.date).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+      card.innerHTML = `
+        <div class="history-date">${formattedDate}</div>
+        <div class="history-details">
+          <span class="history-status ${record.status}">${statusLabels[record.status] || record.status}</span>
+          <span class="history-class">${record.class} · ${record.academic_year}</span>
+          ${typeof record.confidence === 'number' ? `<span class="history-confidence">Confidence: ${(record.confidence * 100).toFixed(0)}%</span>` : ''}
+        </div>
+      `;
+      historyFeed.appendChild(card);
+    });
+  }
+
+  async function loadHistory(studentId) {
+    if (!studentId) return;
+    try {
+      const response = await fetch(buildHistoryUrl(studentId));
+      if (!response.ok) throw new Error('Unable to load student history');
+      const payload = await response.json();
+      renderHistory(payload.records || []);
+    } catch (err) {
+      historyFeed.innerHTML = '';
+      const error = document.createElement('div');
+      error.className = 'history-empty error';
+      error.textContent = err.message || 'Student history could not be loaded.';
+      historyFeed.appendChild(error);
+    }
+  }
+
+  function bootstrap() {
+    renderCalendar();
+    updateSummaryUI({
+      class: initialData.class || { label: `Class ${classSelect.options[classSelect.selectedIndex].text}` },
+      date: initialData.date,
+      students: initialData.snapshot,
+      summary: initialData.summary,
+    });
+    if (studentSelect && studentSelect.value) {
+      loadHistory(studentSelect.value);
+    }
+  }
+
+  // Event listeners
+  if (prevMonth) {
+    prevMonth.addEventListener('click', () => {
+      visibleMonth = new Date(visibleMonth.getFullYear(), visibleMonth.getMonth() - 1, 1);
+      renderCalendar();
+    });
+  }
+
+  if (nextMonth) {
+    nextMonth.addEventListener('click', () => {
+      visibleMonth = new Date(visibleMonth.getFullYear(), visibleMonth.getMonth() + 1, 1);
+      renderCalendar();
+    });
+  }
+
+  if (classSelect) {
+    classSelect.addEventListener('change', () => {
+      selectedClassId = parseInt(classSelect.value, 10);
+      loadSummary();
+      if (studentSelect && studentSelect.value) {
+        loadHistory(studentSelect.value);
+      }
+    });
+  }
+
+  if (studentSelect) {
+    studentSelect.addEventListener('change', () => {
+      loadHistory(studentSelect.value);
+    });
+  }
+
+  bootstrap();
+})();
+</script>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,281 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block extra_head %}
+    <link rel="stylesheet" href="{% static 'css/admin_students.css' %}">
+{% endblock %}
+
+{% block title %}Students · Admin{% endblock %}
+
+{% block content %}
+<div class="students-admin" id="students-admin">
+    <header class="page-header">
+        <div>
+            <h1>Student management</h1>
+            <p class="subtitle">Add new enrolments, audit readiness, and jump into profiles without leaving mission control.</p>
+        </div>
+        <div class="page-actions">
+            <button class="btn-primary" type="button" data-panel-toggle="open">Add student</button>
+            <a class="btn-ghost" href="{% url 'admin:index' %}core/student/" target="_blank" rel="noopener">Advanced admin view</a>
+        </div>
+    </header>
+
+    <section class="stats-grid" aria-label="Student summary metrics">
+        <article class="stat-card">
+            <span class="stat-label">Students</span>
+            <span class="stat-value">{{ stats.student_count }}</span>
+            <span class="stat-hint">Across {{ stats.class_count }} classes</span>
+        </article>
+        <article class="stat-card">
+            <span class="stat-label">Face ready</span>
+            <span class="stat-value">{{ stats.encoded_students }}</span>
+            <span class="stat-hint">Recognition prepared</span>
+        </article>
+        <article class="stat-card">
+            <span class="stat-label">Profile photos</span>
+            <span class="stat-value">{{ stats.photo_students }}</span>
+            <span class="stat-hint">Ready for badges</span>
+        </article>
+        <article class="stat-card">
+            <span class="stat-label">Avg class size</span>
+            <span class="stat-value">{{ stats.average_class_size }}</span>
+            <span class="stat-hint">Students per class</span>
+        </article>
+    </section>
+
+    <section class="card directory-card">
+        <header class="card-header">
+            <div>
+                <h2>Directory</h2>
+                <p class="subtitle">Quickly locate learners, filter by class, or inspect readiness state.</p>
+            </div>
+            <div class="table-controls">
+                <label class="sr-only" for="directory-search">Search students</label>
+                <input id="directory-search" type="search" placeholder="Search by name, email or roll number" autocomplete="off">
+                <label class="sr-only" for="class-filter">Filter by class</label>
+                <select id="class-filter">
+                    <option value="">All classes</option>
+                    {% for option in class_options %}
+                        <option value="{{ option.id }}">{{ option.label }} · {{ option.year }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </header>
+        <div class="table-responsive">
+            <table class="students-table" id="students-table">
+                <thead>
+                    <tr>
+                        <th scope="col" data-sort="name">Student</th>
+                        <th scope="col" data-sort="class">Class</th>
+                        <th scope="col">Contact</th>
+                        <th scope="col" data-sort="readiness">Readiness</th>
+                        <th scope="col" class="actions-col">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in student_rows %}
+                    <tr data-class-id="{{ row.class_id|default:'' }}">
+                        <td data-title="Student" data-value="{{ row.name|default:row.initials }}">
+                            <div class="student-cell">
+                                {% if row.photo_url %}
+                                    <img src="{{ row.photo_url }}" alt="{{ row.name }} photo" class="avatar" loading="lazy">
+                                {% else %}
+                                    <span class="avatar placeholder">{{ row.initials }}</span>
+                                {% endif %}
+                                <div class="student-meta">
+                                    <span class="student-name">{{ row.name }}</span>
+                                    <span class="student-roll">Roll {{ row.roll_number|default:'—' }}</span>
+                                </div>
+                            </div>
+                        </td>
+                        <td data-title="Class" data-value="{{ row.class_label }}">
+                            <div class="class-chip{% if not row.class_id %} muted{% endif %}">
+                                {{ row.class_label }}
+                                {% if row.class_year %}<span>{{ row.class_year }}</span>{% endif %}
+                            </div>
+                        </td>
+                        <td data-title="Contact" data-value="{{ row.email }}">
+                            <a href="mailto:{{ row.email }}" class="contact-link">{{ row.email }}</a>
+                        </td>
+                        <td data-title="Readiness" data-value="{% if row.face_ready %}1{% else %}0{% endif %}">
+                            <div class="readiness-pill{% if row.face_ready %} ready{% else %} missing{% endif %}">
+                                {% if row.face_ready %}Ready{% else %}Needs encoding{% endif %}
+                            </div>
+                        </td>
+                        <td class="actions-cell">
+                            <div class="action-group">
+                                {% if row.manage_url %}
+                                    <a class="btn-pill" href="{{ row.manage_url }}">Profile</a>
+                                {% endif %}
+                                <a class="icon-button" href="{{ row.admin_change_url }}" target="_blank" rel="noopener" title="Edit in admin">✏️</a>
+                                <a class="icon-button danger" href="{{ row.admin_delete_url }}" target="_blank" rel="noopener" title="Delete in admin">🗑️</a>
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr class="empty-row">
+                        <td colspan="5">No students yet. Start by adding your first enrolment.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+</div>
+
+<aside class="form-panel" id="student-panel" aria-hidden="true">
+    <div class="panel-header">
+        <h2>Add student</h2>
+        <button type="button" class="panel-close" data-panel-toggle="close" aria-label="Close form">×</button>
+    </div>
+    <p class="panel-intro">Create a learner profile complete with email, class placement, and profile photo for recognition.</p>
+    <form method="post" enctype="multipart/form-data" class="panel-form" novalidate>
+        {% csrf_token %}
+        {% if form.non_field_errors %}
+            <div class="form-errors">
+                {% for error in form.non_field_errors %}
+                    <p>{{ error }}</p>
+                {% endfor %}
+            </div>
+        {% endif %}
+        {% for field in form %}
+            <div class="form-group{% if field.errors %} has-error{% endif %}">
+                <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                {{ field }}
+                {% if field.help_text %}<p class="help-text">{{ field.help_text }}</p>{% endif %}
+                {% for error in field.errors %}
+                    <span class="field-error">{{ error }}</span>
+                {% endfor %}
+            </div>
+        {% endfor %}
+        <button class="btn-primary" type="submit">Save student</button>
+    </form>
+</aside>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    const root = document.getElementById('students-admin');
+    const table = document.getElementById('students-table');
+    const searchInput = document.getElementById('directory-search');
+    const classFilter = document.getElementById('class-filter');
+    const panel = document.getElementById('student-panel');
+    const toggleButtons = document.querySelectorAll('[data-panel-toggle]');
+
+    const rows = table ? Array.from(table.querySelectorAll('tbody tr')) : [];
+    const params = new URLSearchParams(window.location.search);
+    const initialClass = params.get('class') || params.get('class_id');
+    const initialQuery = params.get('q') || '';
+
+    if (classFilter && initialClass) {
+        const optionExists = Array.from(classFilter.options).some(option => option.value === initialClass);
+        if (optionExists) {
+            classFilter.value = initialClass;
+        }
+    }
+
+    if (searchInput && initialQuery) {
+        searchInput.value = initialQuery;
+    }
+
+    function setPanel(open) {
+        if (!panel) return;
+        panel.setAttribute('aria-hidden', open ? 'false' : 'true');
+        panel.classList.toggle('open', open);
+        document.body.classList.toggle('panel-open', open);
+    }
+
+    toggleButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const action = btn.getAttribute('data-panel-toggle');
+            setPanel(action === 'open');
+        });
+    });
+
+    function matchesFilters(row, query, classId) {
+        const inClass = !classId || row.dataset.classId === classId;
+        if (!inClass) return false;
+        if (!query) return true;
+        const text = row.textContent.toLowerCase();
+        return text.includes(query);
+    }
+
+    function applyFilters() {
+        const query = (searchInput?.value || '').toLowerCase().trim();
+        const classId = classFilter?.value || '';
+        let visible = 0;
+
+        rows.forEach(row => {
+            const show = matchesFilters(row, query, classId);
+            row.style.display = show ? '' : 'none';
+            if (show) visible += 1;
+        });
+
+        root.classList.toggle('is-filtered', Boolean(query) || Boolean(classId));
+
+        const empty = table.querySelector('.empty-state-row');
+        if (!visible) {
+            if (!empty) {
+                const template = document.createElement('tr');
+                template.className = 'empty-state-row';
+                template.innerHTML = '<td colspan="5">No students match your filters yet.</td>';
+                table.querySelector('tbody').appendChild(template);
+            }
+        } else if (empty) {
+            empty.remove();
+        }
+    }
+
+    searchInput?.addEventListener('input', applyFilters);
+    classFilter?.addEventListener('change', applyFilters);
+
+    const headers = table ? Array.from(table.querySelectorAll('th[data-sort]')) : [];
+
+    headers.forEach(header => {
+        header.addEventListener('click', () => {
+            const key = header.getAttribute('data-sort');
+            const ascending = !header.classList.contains('sorted-asc');
+            headers.forEach(h => h.classList.remove('sorted-asc', 'sorted-desc'));
+            header.classList.add(ascending ? 'sorted-asc' : 'sorted-desc');
+
+            const sorted = rows.slice().sort((a, b) => {
+                const aCell = a.querySelector(`[data-title][data-value]`);
+                const bCell = b.querySelector(`[data-title][data-value]`);
+                let aVal = '';
+                let bVal = '';
+
+                switch (key) {
+                    case 'name':
+                        aVal = a.querySelector('td[data-title="Student"]').dataset.value || '';
+                        bVal = b.querySelector('td[data-title="Student"]').dataset.value || '';
+                        break;
+                    case 'class':
+                        aVal = a.querySelector('td[data-title="Class"]').dataset.value || '';
+                        bVal = b.querySelector('td[data-title="Class"]').dataset.value || '';
+                        break;
+                    case 'readiness':
+                        aVal = a.querySelector('td[data-title="Readiness"]').dataset.value || '0';
+                        bVal = b.querySelector('td[data-title="Readiness"]').dataset.value || '0';
+                        break;
+                    default:
+                        break;
+                }
+
+                if (key === 'readiness') {
+                    return ascending ? bVal.localeCompare(aVal) : aVal.localeCompare(bVal);
+                }
+
+                return ascending ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
+            });
+
+            const tbody = table.querySelector('tbody');
+            sorted.forEach(row => tbody.appendChild(row));
+            applyFilters();
+        });
+    });
+
+    applyFilters();
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,545 @@
+/* static/css/admin_students.css */
+
+.students-admin {
+    display: flex;
+    flex-direction: column;
+    gap: 28px;
+}
+
+.page-header {
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 18px;
+    align-items: flex-start;
+}
+
+.page-header h1 {
+    margin: 0;
+    font-size: 32px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: #111827;
+}
+
+.page-header .subtitle {
+    margin: 6px 0 0;
+    color: #4B5563;
+    max-width: 540px;
+    line-height: 1.6;
+}
+
+.page-actions {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+}
+
+.btn-primary,
+.btn-ghost {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    font-weight: 600;
+    border-radius: 12px;
+    transition: transform 0.18s ease, box-shadow 0.18s ease;
+    text-decoration: none;
+}
+
+.page-actions .btn-primary {
+    padding: 12px 20px;
+    background: linear-gradient(135deg, #6366F1, #4338CA);
+    color: #FFFFFF;
+    box-shadow: 0 12px 24px rgba(79, 70, 229, 0.25);
+}
+
+.page-actions .btn-primary:hover {
+    transform: translateY(-1px);
+}
+
+.page-actions .btn-ghost {
+    padding: 11px 18px;
+    border: 1px solid rgba(99, 102, 241, 0.35);
+    background: rgba(99, 102, 241, 0.08);
+    color: #4338CA;
+}
+
+.page-actions .btn-ghost:hover {
+    transform: translateY(-1px);
+    background: rgba(99, 102, 241, 0.16);
+}
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 18px;
+}
+
+.stat-card {
+    background: #FFFFFF;
+    border-radius: 18px;
+    padding: 20px 22px;
+    box-shadow: 0 16px 38px rgba(15, 23, 42, 0.08);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.stat-label {
+    font-size: 13px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #6366F1;
+}
+
+.stat-value {
+    font-size: 30px;
+    font-weight: 700;
+    color: #111827;
+}
+
+.stat-hint {
+    font-size: 14px;
+    color: #6B7280;
+}
+
+.card {
+    background: #FFFFFF;
+    border-radius: 20px;
+    box-shadow: 0 20px 40px rgba(15, 23, 42, 0.08);
+    padding: 0;
+}
+
+.card-header {
+    display: flex;
+    justify-content: space-between;
+    gap: 20px;
+    padding: 26px 28px 0;
+    align-items: flex-end;
+    flex-wrap: wrap;
+}
+
+.card-header h2 {
+    margin: 0;
+    font-size: 24px;
+    font-weight: 700;
+    color: #111827;
+}
+
+.card-header .subtitle {
+    margin: 6px 0 0;
+    color: #6B7280;
+    font-size: 15px;
+}
+
+.table-controls {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+}
+
+.table-controls input,
+.table-controls select {
+    padding: 10px 14px;
+    border-radius: 12px;
+    border: 1px solid rgba(209, 213, 219, 0.8);
+    font-size: 14px;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.table-controls input:focus,
+.table-controls select:focus {
+    outline: none;
+    border-color: #6366F1;
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+}
+
+.table-responsive {
+    padding: 0 28px 28px;
+    overflow-x: auto;
+}
+
+.students-table {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 760px;
+}
+
+.students-table th,
+.students-table td {
+    padding: 14px 16px;
+    border-bottom: 1px solid rgba(226, 232, 240, 0.8);
+    text-align: left;
+    font-size: 14px;
+    color: #1F2937;
+}
+
+.students-table tbody tr:hover {
+    background: rgba(241, 245, 249, 0.6);
+}
+
+.students-table th[data-sort] {
+    cursor: pointer;
+    position: relative;
+}
+
+.students-table th[data-sort]::after {
+    content: '\25B4';
+    font-size: 12px;
+    opacity: 0;
+    margin-left: 6px;
+    transition: opacity 0.2s ease;
+}
+
+.students-table th.sorted-asc::after {
+    opacity: 1;
+    transform: rotate(0deg);
+}
+
+.students-table th.sorted-desc::after {
+    opacity: 1;
+    content: '\25BE';
+}
+
+.actions-col,
+.actions-cell {
+    text-align: right;
+}
+
+.student-cell {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.avatar {
+    width: 46px;
+    height: 46px;
+    border-radius: 50%;
+    object-fit: cover;
+    box-shadow: 0 12px 20px rgba(15, 23, 42, 0.18);
+}
+
+.avatar.placeholder {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, #E0E7FF, #C7D2FE);
+    color: #4338CA;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+}
+
+.student-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.student-name {
+    font-weight: 600;
+    color: #111827;
+}
+
+.student-roll {
+    font-size: 13px;
+    color: #6B7280;
+}
+
+.class-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-radius: 999px;
+    font-weight: 600;
+    background: rgba(129, 140, 248, 0.16);
+    color: #4338CA;
+}
+
+.class-chip span {
+    font-size: 12px;
+    text-transform: uppercase;
+    color: rgba(67, 56, 202, 0.7);
+}
+
+.class-chip.muted {
+    background: rgba(148, 163, 184, 0.16);
+    color: #475569;
+}
+
+.contact-link {
+    color: #2563EB;
+    font-weight: 500;
+    text-decoration: none;
+}
+
+.contact-link:hover {
+    text-decoration: underline;
+}
+
+.readiness-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 6px 12px;
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.readiness-pill.ready {
+    background: rgba(16, 185, 129, 0.16);
+    color: #047857;
+}
+
+.readiness-pill.missing {
+    background: rgba(248, 113, 113, 0.16);
+    color: #B91C1C;
+}
+
+.action-group {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.btn-pill {
+    padding: 8px 16px;
+    border-radius: 999px;
+    background: rgba(99, 102, 241, 0.12);
+    color: #4338CA;
+    font-weight: 600;
+    text-decoration: none;
+    transition: background 0.2s ease;
+}
+
+.btn-pill:hover {
+    background: rgba(99, 102, 241, 0.22);
+}
+
+.icon-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 10px;
+    background: rgba(148, 163, 184, 0.16);
+    color: #1F2937;
+    text-decoration: none;
+    font-size: 16px;
+    transition: background 0.2s ease;
+}
+
+.icon-button:hover {
+    background: rgba(148, 163, 184, 0.26);
+}
+
+.icon-button.danger {
+    color: #B91C1C;
+}
+
+.icon-button.danger:hover {
+    background: rgba(248, 113, 113, 0.26);
+}
+
+.empty-row td {
+    text-align: center;
+    padding: 32px 0;
+    color: #6B7280;
+}
+
+.form-panel {
+    position: fixed;
+    top: 0;
+    right: 0;
+    width: min(420px, 100%);
+    height: 100vh;
+    background: #FFFFFF;
+    box-shadow: -24px 0 48px rgba(15, 23, 42, 0.15);
+    padding: 32px 32px 40px;
+    transform: translateX(100%);
+    transition: transform 0.25s ease;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    z-index: 1200;
+}
+
+.form-panel.open {
+    transform: translateX(0);
+}
+
+.panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.panel-header h2 {
+    margin: 0;
+    font-size: 24px;
+    font-weight: 700;
+    color: #111827;
+}
+
+.panel-close {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(148, 163, 184, 0.16);
+    cursor: pointer;
+    font-size: 18px;
+    line-height: 1;
+}
+
+.panel-close:hover {
+    background: rgba(148, 163, 184, 0.28);
+}
+
+.panel-intro {
+    margin: 0;
+    color: #4B5563;
+    line-height: 1.5;
+}
+
+.panel-form {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    overflow-y: auto;
+    padding-right: 6px;
+    flex: 1;
+    min-height: 0;
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.form-group label {
+    font-weight: 600;
+    color: #374151;
+}
+
+.form-group input,
+.form-group select,
+.form-group textarea {
+    padding: 12px 14px;
+    border-radius: 12px;
+    border: 1px solid rgba(209, 213, 219, 0.9);
+    font-size: 15px;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.input-control {
+    width: 100%;
+}
+
+.select-control {
+    appearance: none;
+    background-image: linear-gradient(45deg, transparent 50%, rgba(79, 70, 229, 0.8) 50%),
+        linear-gradient(135deg, rgba(79, 70, 229, 0.8) 50%, transparent 50%);
+    background-position: calc(100% - 18px) calc(50% - 3px), calc(100% - 13px) calc(50% - 3px);
+    background-size: 6px 6px, 6px 6px;
+    background-repeat: no-repeat;
+}
+
+.file-control {
+    padding: 10px 12px;
+}
+
+.form-group input:focus,
+.form-group select:focus,
+.form-group textarea:focus {
+    outline: none;
+    border-color: #6366F1;
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+}
+
+.form-group.has-error input,
+.form-group.has-error select,
+.form-group.has-error textarea {
+    border-color: #F87171;
+}
+
+.field-error {
+    font-size: 13px;
+    color: #B91C1C;
+}
+
+.help-text {
+    font-size: 12px;
+    color: #6B7280;
+}
+
+.form-errors {
+    border: 1px solid rgba(248, 113, 113, 0.4);
+    border-radius: 12px;
+    padding: 12px 16px;
+    background: rgba(248, 113, 113, 0.12);
+    color: #B91C1C;
+}
+
+/* Sticky submit action so Save button is always reachable */
+.panel-form button[type="submit"],
+.panel-form .btn-primary[type="submit"] {
+    position: sticky;
+    bottom: 0;
+    align-self: flex-end;
+    margin-top: 4px;
+    box-shadow: 0 8px 18px rgba(79,70,229,0.25);
+}
+
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+body.panel-open {
+    overflow: hidden;
+}
+
+@media (max-width: 920px) {
+    .page-header {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .page-actions {
+        justify-content: flex-start;
+        flex-wrap: wrap;
+    }
+
+    .table-controls {
+        flex-wrap: wrap;
+        justify-content: flex-end;
+    }
+
+    .table-controls input,
+    .table-controls select {
+        width: 100%;
+    }
+}
+
+@media (max-width: 640px) {
+    .form-panel {
+        width: 100%;
+    }
+
+    .table-responsive {
+        padding: 0 18px 18px;
+    }
+}

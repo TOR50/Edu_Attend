@@ -8,60 +8,232 @@
 {% block title %}Admin Dashboard{% endblock %}
 
 {% block content %}
-<div class="header-container">
-    <h1>Admin Dashboard</h1>
-</div>
+<div class="admin-dashboard" id="admin-dashboard">
+    <section class="dashboard-hero">
+        <div class="hero-copy">
+            <p class="eyebrow">Control centre</p>
+            <h1>School operations at a glance</h1>
+            <p class="lead">Track attendance readiness, surface the classes that need help, and keep every Profile camera-ready.</p>
+            <div class="hero-actions">
+                <a class="btn btn-primary" href="{% url 'admin_students' %}">Manage students</a>
+                <a class="btn btn-primary" href="{% url 'admin:index' %}core/schoolclass/add/" target="_blank" rel="noopener">Add class</a>
+                <a class="btn btn-primary" href="{% url 'admin:index' %}core/academicyear/add/" target="_blank" rel="noopener">New academic year</a>
+                <a class="btn btn-primary" href="{% url 'admin:index' %}" target="_blank" rel="noopener">Open Django admin</a>
+            </div>
+        </div>
+        <div class="hero-score" style="--value: {{ stats.encoding_percent|default:0 }}">
+            <div class="score-circle">
+                <br>
+                <span class="score-value">{{ stats.encoding_percent }}%</span>
+                <span class="score-label">Profile readiness</span>
+            </div>
+            <ul class="score-meta">
+                <li>
+                    <span class="meta-label">Students encoded</span>
+                    <span class="meta-value">{{ stats.encoded_students }} / {{ stats.student_count }}</span>
+                </li>
+                <li>
+                    <span class="meta-label">Photos on file</span>
+                    <span class="meta-value">{{ stats.photo_students }} / {{ stats.student_count }}</span>
+                </li>
+            </ul>
+        </div>
+    </section>
 
-<div class="grid-container">
-    <div class="card">
-        <div class="card-header">Add New Student</div>
-        <form method="post" enctype="multipart/form-data">
-            {% csrf_token %}
-            {% for field in form %}
-                <div class="form-group">
-                    {{ field.label_tag }}
-                    {{ field }}
+    <section class="metric-grid" aria-label="Key totals">
+        <article class="metric-card">
+            <div class="metric-icon" aria-hidden="true"></div>
+            <div class="metric-body">
+                <span class="metric-label">Academic years</span>
+                <span class="metric-value">{{ stats.academic_years }}</span>
+            </div>
+            <span class="metric-foot"><strong>{{ stats.active_years }}</strong> active this term</span>
+        </article>
+        <article class="metric-card">
+            <div class="metric-icon classes" aria-hidden="true"></div>
+            <div class="metric-body">
+                <span class="metric-label">Classes</span>
+                <span class="metric-value">{{ stats.class_count }}</span>
+            </div>
+            <span class="metric-foot">Avg {{ stats.average_class_size }} students/class</span>
+        </article>
+        <article class="metric-card">
+            <div class="metric-icon students" aria-hidden="true"></div>
+            <div class="metric-body">
+                <span class="metric-label">Students enrolled</span>
+                <span class="metric-value">{{ stats.student_count }}</span>
+            </div>
+            <span class="metric-foot">{{ stats.photo_students }} with portrait data</span>
+        </article>
+        <article class="metric-card">
+            <div class="metric-icon ready" aria-hidden="true"></div>
+            <div class="metric-body">
+                <span class="metric-label">Face ready</span>
+                <span class="metric-value">{{ stats.encoding_percent }}%</span>
+            </div>
+            <span class="metric-foot">{{ stats.encoded_students }} students cleared</span>
+        </article>
+    </section>
+
+    <section class="content-grid">
+        <section class="panel readiness" aria-labelledby="readiness-title">
+            <header class="panel-header">
+                <div>
+                    <h2 id="readiness-title">Readiness by requirement</h2>
+                    <p>Make sure every class is ready for automated attendance.</p>
                 </div>
-            {% endfor %}
-            <button class="btn-primary" type="submit">Add Student</button>
-        </form>
-    </div>
+                <a class="btn btn-primary" href="{% url 'admin_students' %}">Review Profile</a>
+            </header>
+            <div class="panel-body">
+                <dl class="progress-list">
+                    <div class="progress-item">
+                        <dt>Recognition encodings</dt>
+                        <dd>
+                            <div class="progress-track">
+                                <span class="progress-fill" style="--value: {{ stats.encoding_percent|default:0 }}"></span>
+                            </div>
+                            <span class="progress-value">{{ stats.encoded_students }} / {{ stats.student_count }}</span>
+                        </dd>
+                    </div>
+                    <div class="progress-item">
+                        <dt>Profile photos</dt>
+                        <dd>
+                            <div class="progress-track">
+                                <span class="progress-fill alt" style="--value: {{ stats.photo_percent|default:0 }}"></span>
+                            </div>
+                            <span class="progress-value">{{ stats.photo_students }} / {{ stats.student_count }}</span>
+                        </dd>
+                    </div>
+                </dl>
+                <div class="callout">
+                    <strong>{{ stats.encoding_percent }}%</strong>
+                    <span>of the Profile has encodings today.</span>
+                </div>
+            </div>
+        </section>
 
-    <div class="card">
-        <div class="card-header">All Classes</div>
-        <ul class="list-group">
-            {% for c in classes %}
-                <li class="list-group-item">Class {{ c.grade }}-{{ c.section }}</li>
-            {% empty %}
-                <li class="list-group-item">No classes yet</li>
-            {% endfor %}
-        </ul>
-    </div>
-</div>
+        <section class="panel timeline" aria-labelledby="timeline-title">
+            <header class="panel-header">
+                <div>
+                    <h2 id="timeline-title">Academic timeline</h2>
+                    <p>Use years to archive performance and reset each term.</p>
+                </div>
+                <span class="chip">{{ stats.academic_years }} years tracked</span>
+            </header>
+            <div class="panel-body">
+                {% if academic_years %}
+                    <ul class="timeline-list">
+                        {% for year in academic_years %}
+                            <li class="timeline-row{% if year.is_active %} is-active{% endif %}">
+                                <div class="timeline-marker" aria-hidden="true"></div>
+                                <div class="timeline-content">
+                                    <span class="timeline-year">{{ year.year }}</span>
+                                    <span class="timeline-status">{% if year.is_active %}Active{% else %}Archived{% endif %}</span>
+                                </div>
+                                <span class="chip {% if year.is_active %}chip-success{% else %}chip-muted{% endif %}">
+                                    {% if year.is_active %}In progress{% else %}Closed{% endif %}
+                                </span>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                {% else %}
+                    <div class="empty">No academic years yet. Add one to start tracking attendance by term.</div>
+                {% endif %}
+            </div>
+        </section>
+    </section>
 
-<div class="card" style="margin-top: 30px;">
-    <div class="card-header">All Students</div>
-    <table class="table">
-        <thead>
-            <tr>
-                <th>Name</th>
-                <th>Class</th>
-                <th>Photo</th>
-                <th>Face Encoding</th>
-                <th>Actions</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for s in students %}
-            <tr>
-                <td>{% if s.id %}<a href="{% url 'student_detail' s.id %}">{{ s.get_full_name }}</a>{% else %}{{ s.get_full_name }}{% endif %}</td>
-                <td>{{ s.school_class }}</td>
-                <td>{% if s.photo %}<img src="{{ s.photo.url }}" height="40" style="border-radius: 4px;"/>{% else %}-{% endif %}</td>
-                <td>{% if s.face_encodings %}Yes{% else %}No{% endif %}</td>
-                <td>{% if s.id %}<a href="{% url 'student_detail' s.id %}" class="btn-sm btn-primary">View</a>{% endif %}</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+    <section class="panel classes" aria-labelledby="classes-title">
+        <header class="panel-header">
+            <div>
+                <h2 id="classes-title">Classes that need attention</h2>
+                <p>Spot cohorts with the lowest readiness and close the gaps fast.</p>
+            </div>
+            <span class="chip">Top {{ class_insights|length }} of {{ stats.class_count }}</span>
+        </header>
+        <div class="panel-body">
+            {% if class_insights %}
+            <div class="table-wrap">
+                <table class="insight-table">
+                    <thead>
+                        <tr>
+                            <th scope="col">Class</th>
+                            <th scope="col">Year</th>
+                            <th scope="col">Students</th>
+                            <th scope="col">Face ready</th>
+                            <th scope="col">Photo coverage</th>
+                            <th scope="col" class="table-actions">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in class_insights %}
+                            <tr>
+                                <td data-title="Class">{{ item.label }}</td>
+                                <td data-title="Year">{{ item.year }}</td>
+                                <td data-title="Students">{{ item.students }}</td>
+                                <td data-title="Face ready">
+                                    <div class="table-progress">
+                                        <span class="bar" style="--value: {{ item.readiness|default:0 }}"></span>
+                                        <span class="bar-value">{{ item.readiness }}%</span>
+                                    </div>
+                                </td>
+                                <td data-title="Photo coverage">
+                                    <div class="table-progress alt">
+                                        <span class="bar" style="--value: {{ item.photo_percent|default:0 }}"></span>
+                                        <span class="bar-value">{{ item.photo_percent }}%</span>
+                                    </div>
+                                </td>
+                                <td class="table-actions"><a class="btn btn-small" href="{{ item.manage_url }}">Manage Profile</a></td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+                <div class="empty">No classes yet. Create your first class to start tracking attendance.</div>
+            {% endif %}
+        </div>
+    </section>
+
+    <section class="panel recent" aria-labelledby="recent-title">
+        <header class="panel-header">
+            <div>
+                <h2 id="recent-title">Newest students</h2>
+                <p>Fresh enrollments across the school.</p>
+            </div>
+            <span class="chip">Latest {{ recent_students|length }}</span>
+        </header>
+        <div class="panel-body">
+            {% if recent_students %}
+                <div class="card-grid">
+                    {% for s in recent_students %}
+                        <article class="student-card{% if s.face_ready %} is-ready{% endif %}">
+                            <header class="student-card-header">
+                                <div class="avatar" role="presentation">
+                                    {% if s.photo_url %}
+                                        <img src="{{ s.photo_url }}" alt="" loading="lazy">
+                                    {% else %}
+                                        <span>{{ s.initial }}</span>
+                                    {% endif %}
+                                </div>
+                                <div class="student-meta">
+                                    <h3>{{ s.name }}</h3>
+                                    <p>{{ s.class_label|default:'Unassigned' }}{% if s.class_year %} · {{ s.class_year }}{% endif %}</p>
+                                </div>
+                            </header>
+                            <footer class="student-card-footer">
+                                <span class="status-pill">{% if s.face_ready %}Face ready{% else %}Needs encoding{% endif %}</span>
+                                {% if s.profile_url %}
+                                    <a class="btn btn-primary" href="{{ s.profile_url }}">View profile</a>
+                                {% endif %}
+                            </footer>
+                        </article>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="empty">No students added yet.</div>
+            {% endif %}
+        </div>
+    </section>
 </div>
 {% endblock %}

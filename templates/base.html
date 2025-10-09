@@ -16,34 +16,54 @@
             </div>
             <nav>
                 <ul>
-                    {% if user.role == 'admin' %}
-                    <li>
-                        <a href="{% url 'admin_dashboard' %}" class="{% if request.resolver_match.url_name == 'admin_dashboard' %}active{% endif %}">
-                            <img src="{% static 'images/icons/Dashboard.svg' %}" alt="Dashboard" class="icon">
-                            Dashboard
-                        </a>
-                    </li>
-                    {% else %}
-                    <li>
-                        <a href="{% url 'teacher_dashboard' %}" class="{% if request.resolver_match.url_name == 'teacher_dashboard' %}active{% endif %}">
-                            <img src="{% static 'images/icons/Dashboard.svg' %}" alt="Dashboard" class="icon">
-                            Dashboard
-                        </a>
-                    </li>
-                    <li>
-                        <a href="{% url 'take_attendance' 1 %}" class="{% if request.resolver_match.url_name == 'take_attendance' %}active{% endif %}">
-                            <img src="{% static 'images/icons/TakeAttendance.svg' %}" alt="Take Attendance" class="icon">
-                            Take Attendance
-                        </a>
-                    </li>
+                    {% if user.is_authenticated %}
+                        {% if user.role == 'admin' %}
+                            <li>
+                                <a href="{% url 'admin_dashboard' %}" class="{% if request.resolver_match.url_name == 'admin_dashboard' %}active{% endif %}">
+                                    <img src="{% static 'images/icons/Dashboard.svg' %}" alt="Dashboard" class="icon">
+                                    Dashboard
+                                </a>
+                            </li>
+                            <li>
+                                <a href="{% url 'admin_students' %}" class="{% if request.resolver_match.url_name == 'admin_students' %}active{% endif %}">
+                                    <img src="{% static 'images/icons/Students.svg' %}" alt="Students" class="icon">
+                                    Students
+                                </a>
+                            </li>
+                        {% elif user.role == 'teacher' %}
+                            <li>
+                                <a href="{% url 'teacher_dashboard' %}" class="{% if request.resolver_match.url_name == 'teacher_dashboard' %}active{% endif %}">
+                                    <img src="{% static 'images/icons/Dashboard.svg' %}" alt="Dashboard" class="icon">
+                                    Dashboard
+                                </a>
+                            </li>
+                            <li>
+                                <a href="{% url 'take_attendance_entry' %}" class="{% if request.resolver_match.url_name == 'take_attendance' or request.resolver_match.url_name == 'take_attendance_entry' %}active{% endif %}">
+                                    <img src="{% static 'images/icons/TakeAttendance.svg' %}" alt="Take Attendance" class="icon">
+                                    Take Attendance
+                                </a>
+                            </li>
+                            <li>
+                                <a href="{% url 'attendance_overview' %}" class="{% if request.resolver_match.url_name == 'attendance_overview' %}active{% endif %}">
+                                    <img src="{% static 'images/icons/Classes.svg' %}" alt="View Attendance" class="icon">
+                                    View Attendance
+                                </a>
+                            </li>
+                        {% elif user.role == 'student' %}
+                            <li>
+                                <a href="{% url 'student_dashboard' %}" class="{% if request.resolver_match.url_name == 'student_dashboard' %}active{% endif %}">
+                                    <img src="{% static 'images/icons/Dashboard.svg' %}" alt="Dashboard" class="icon">
+                                    Dashboard
+                                </a>
+                            </li>
+                        {% endif %}
+                        <li>
+                            <a href="{% url 'logout_get' %}">
+                                <img src="{% static 'images/icons/logout.svg' %}" alt="Logout" class="icon">
+                                Logout
+                            </a>
+                        </li>
                     {% endif %}
-                    <!-- Add other navigation links here -->
-                    <li class="logout-item">
-                        <a href="{% url 'logout_get' %}">
-                            <img src="{% static 'images/icons/logout.svg' %}" alt="Logout" class="icon">
-                            Logout
-                        </a>
-                    </li>
                 </ul>
             </nav>
         </aside>

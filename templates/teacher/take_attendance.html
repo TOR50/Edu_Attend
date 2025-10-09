@@ -2,56 +2,154 @@
 {% load static %}
 
 {% block extra_head %}
+<link rel="stylesheet" href="{% static 'css/view_attendance.css' %}">
 <link rel="stylesheet" href="{% static 'css/take_attendance.css' %}">
+<style>
+  .take-attendance-page .live-grid {
+    display: flex;
+    flex-direction: row;
+    gap: 24px;
+    align-items: stretch;
+  }
+
+  .take-attendance-page .live-card,
+  .take-attendance-page .live-summary {
+    flex: 1 1 0;
+  }
+
+  .take-attendance-page .btn-mark {
+    padding: 10px 18px;
+    border-radius: 12px;
+    border: none;
+    background: linear-gradient(135deg, #2563EB, #4338CA);
+    color: #FFFFFF;
+    font-weight: 600;
+    font-size: 14px;
+    letter-spacing: 0.3px;
+    cursor: pointer;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  .take-attendance-page .btn-mark:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 10px 20px rgba(67, 56, 202, 0.25);
+  }
+
+  .take-attendance-page .btn-mark:active {
+    transform: translateY(0);
+    box-shadow: none;
+  }
+
+  @media (max-width: 960px) {
+    .take-attendance-page .live-grid {
+      flex-direction: column;
+    }
+
+    .take-attendance-page .live-card,
+    .take-attendance-page .live-summary {
+      width: 100%;
+    }
+  }
+</style>
 {% endblock %}
 
 {% block content %}
-<div class="page-header">
-  <h1>Take attendance - Class {{ school_class.grade }}-{{ school_class.section }}</h1>
-  <p class="text-muted mb-0">Encodings available: {{ enc_count }}</p>
-  <p id="notice" class="text-warning" style="margin-top:8px; display:none;"></p>
-</div>
-
-<div id="page-data" data-class-id="{{ school_class.id }}" hidden></div>
-
-<div class="attendance-container">
-  <div class="camera-container">
-    <div class="video-card">
-      <div class="video-wrapper">
-        <video id="video" playsinline autoplay></video>
-        <canvas id="overlay"></canvas>
-      </div>
-      <div class="controls">
-        <div class="action-buttons">
-          <button id="startBtn" class="btn-custom btn-start">Start Camera</button>
-          <button id="stopBtn" class="btn-custom btn-stop" disabled>Stop Camera</button>
-        </div>
-        <a class="btn-diagnostics" target="_blank" href="{% url 'class_diagnostics' %}">Diagnostics</a>
-      </div>
+<div class="take-attendance-page">
+  <div class="page-heading">
+    <div>
+      <h1>Take attendance</h1>
+      <p class="subtitle">Start the camera feed and confirm who&apos;s present today.</p>
     </div>
-    <pre id="log">Camera is off.</pre>
-  </div>
-
-  <div class="student-list-container">
-    <div class="student-list-card">
-      <h5>Students</h5>
-      <ul id="students">
-        {% for s in students %}
-        <li class="student-item {% if s.pk in present_ids %}present{% else %}absent{% endif %}" data-id="{{ s.pk }}">
-          <span class="student-name">{{ s.get_full_name }}</span>
-          <span class="status-badge {% if s.pk in present_ids %}present{% else %}absent{% endif %}">
-            {% if s.pk in present_ids %}Present{% else %}Absent{% endif %}
-          </span>
-          {% if not s.pk in present_ids %}
-          <button class="btn-custom" data-action="mark-present" data-student="{{ s.pk }}">Mark Present</button>
-          {% endif %}
-        </li>
+    {% if classes %}
+    <div class="controls">
+      <label for="classSelect" class="control-label">Class</label>
+      <select id="classSelect" class="control-select">
+        {% for c in classes %}
+        <option value="{{ c.id }}" {% if c.id == school_class.id %}selected{% endif %}>Class {{ c.grade }}-{{ c.section }} ({{ c.academic_year }})</option>
         {% endfor %}
-      </ul>
+      </select>
     </div>
+    {% endif %}
+  </div>
+
+  <p id="notice" class="notice" style="display:none;"></p>
+
+  <div class="live-grid">
+    <section class="live-card">
+      <div class="video-card">
+        <div class="video-header">
+          <div>
+            <h2>Live camera</h2>
+            <p class="video-subtitle">Encodings available: {{ enc_count }}</p>
+          </div>
+          <a class="btn-diagnostics" target="_blank" href="{% url 'class_diagnostics' %}">Diagnostics</a>
+        </div>
+        <div class="video-wrapper">
+          <div class="camera-spinner" id="cameraSpinner" aria-hidden="true">
+            <div class="spinner" role="status" aria-label="Connecting camera"></div>
+            <span class="spinner-label">Connecting…</span>
+          </div>
+          <video id="video" playsinline autoplay></video>
+          <canvas id="overlay"></canvas>
+        </div>
+        <div class="controls">
+          <div class="action-buttons">
+            <button id="startBtn" class="btn-custom btn-start">Start Camera</button>
+            <button id="stopBtn" class="btn-custom btn-stop" disabled>Stop Camera</button>
+          </div>
+        </div>
+      </div>
+      <pre id="log">Camera is off.</pre>
+    </section>
+
+    <section class="daily-card live-summary">
+      <header class="daily-header">
+        <div>
+          <h2>Class {{ school_class.grade }}-{{ school_class.section }} attendance</h2>
+          <p class="daily-date">{{ today|date:"l, F j, Y" }}</p>
+        </div>
+      </header>
+      <div class="summary-pills">
+        <div class="summary-pill present">Present <span id="countPresent">{{ status_summary.present }}</span></div>
+        <div class="summary-pill absent">Absent <span id="countAbsent">{{ status_summary.absent }}</span></div>
+        <div class="summary-pill late">Late <span id="countLate">{{ status_summary.late }}</span></div>
+        <div class="summary-pill excused">Excused <span id="countExcused">{{ status_summary.excused }}</span></div>
+      </div>
+      <ul class="daily-list" id="students">
+        {% if snapshot %}
+          {% for entry in snapshot %}
+          <li class="daily-entry student-item {{ entry.status }}" data-id="{{ entry.id }}">
+            <div class="daily-info">
+              <span class="daily-name">{{ entry.name }}</span>
+              {% if entry.roll_number %}<span class="daily-roll">{{ entry.roll_number }}</span>{% endif %}
+            </div>
+            <div class="daily-actions">
+              <span class="status-chip {{ entry.status }}">{{ entry.status|capfirst }}</span>
+              {% if entry.status != 'present' and entry.status != 'excused' %}
+              <button class="btn-mark" data-action="mark-present" data-student="{{ entry.id }}">Mark Present</button>
+              {% endif %}
+            </div>
+          </li>
+          {% endfor %}
+        {% else %}
+          <li class="daily-empty">No students in this class yet.</li>
+        {% endif %}
+      </ul>
+    </section>
   </div>
 </div>
 
+<div id="takeAttendanceMeta"
+     data-class-id="{{ school_class.id }}"
+     data-switch-url="{% url 'take_attendance_entry' %}"
+     data-date="{{ today|date:'Y-m-d' }}">
+</div>
+{{ status_summary|json_script:"live-summary" }}
+{{ snapshot|json_script:"live-snapshot" }}
+
+{% endblock %}
+
+{% block extra_js %}
 <script>
 (function() {
   const video = document.getElementById('video');
@@ -60,11 +158,53 @@
   const startBtn = document.getElementById('startBtn');
   const stopBtn = document.getElementById('stopBtn');
   const logEl = document.getElementById('log');
-  const classId = parseInt(document.getElementById('page-data').dataset.classId);
+  const noticeEl = document.getElementById('notice');
+  const classSelect = document.getElementById('classSelect');
+  const meta = document.getElementById('takeAttendanceMeta');
+  const classId = parseInt(meta.dataset.classId, 10);
+  const switchUrl = meta.dataset.switchUrl;
+  const cameraSpinner = document.getElementById('cameraSpinner');
+  const captureCanvas = document.createElement('canvas');
+  const captureCtx = captureCanvas.getContext('2d', { willReadFrequently: true });
+
+  const summaryData = Object.assign({present: 0, absent: 0, late: 0, excused: 0}, JSON.parse(document.getElementById('live-summary').textContent));
+  const snapshotArray = JSON.parse(document.getElementById('live-snapshot').textContent);
+  const snapshotMap = new Map(snapshotArray.map(entry => [entry.id, entry]));
+
+  const countPresent = document.getElementById('countPresent');
+  const countAbsent = document.getElementById('countAbsent');
+  const countLate = document.getElementById('countLate');
+  const countExcused = document.getElementById('countExcused');
+  const studentsList = document.getElementById('students');
+
   let running = false;
   let stream = null;
 
+  function showSpinner(label = 'Connecting…') {
+    if (!cameraSpinner) return;
+    const span = cameraSpinner.querySelector('.spinner-label');
+    if (span) {
+      span.textContent = label;
+    }
+    cameraSpinner.classList.add('is-active');
+  }
+
+  function hideSpinner() {
+    if (!cameraSpinner) return;
+    cameraSpinner.classList.remove('is-active');
+  }
+
+  function refreshCounts() {
+    countPresent.textContent = summaryData.present ?? 0;
+    countAbsent.textContent = summaryData.absent ?? 0;
+    countLate.textContent = summaryData.late ?? 0;
+    countExcused.textContent = summaryData.excused ?? 0;
+  }
+
   function setOverlaySize() {
+    if (!video.videoWidth || !video.videoHeight) {
+      return;
+    }
     const videoRect = video.getBoundingClientRect();
     const videoAspectRatio = video.videoWidth / video.videoHeight;
     const containerAspectRatio = videoRect.width / videoRect.height;
@@ -72,13 +212,11 @@
     let newWidth, newHeight, newLeft, newTop;
 
     if (videoAspectRatio > containerAspectRatio) {
-        // Video is wider than container, letterboxed (bars top/bottom)
         newWidth = videoRect.width;
         newHeight = newWidth / videoAspectRatio;
         newLeft = 0;
         newTop = (videoRect.height - newHeight) / 2;
     } else {
-        // Video is taller than container, pillarboxed (bars left/right)
         newHeight = videoRect.height;
         newWidth = newHeight * videoAspectRatio;
         newTop = 0;
@@ -97,6 +235,7 @@
   video.addEventListener('loadedmetadata', () => {
     setOverlaySize();
     video.play();
+    hideSpinner();
   });
   window.addEventListener('resize', setOverlaySize);
 
@@ -113,7 +252,15 @@
 
   async function start() {
     log('Starting camera...');
+    clearNotice();
+    if (!navigator.onLine) {
+      notice('You appear to be offline. Reconnect to start the camera.');
+      log('Cannot start camera while offline.');
+      startBtn.disabled = false;
+      return;
+    }
     startBtn.disabled = true;
+    showSpinner('Connecting camera…');
     try {
       stream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 640 }, height: { ideal: 480 } }, audio: false });
       video.srcObject = stream;
@@ -126,6 +273,7 @@
     } catch (e) {
       log('Camera error: ' + e);
       startBtn.disabled = false;
+      hideSpinner();
     }
   }
 
@@ -142,17 +290,25 @@
     ctx.clearRect(0, 0, overlay.width, overlay.height);
     startBtn.disabled = false;
     log('Camera is off.');
+    hideSpinner();
   }
 
   async function tick() {
     if (!running) return;
     
-    const canvas = document.createElement('canvas');
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    const cctx = canvas.getContext('2d');
-    cctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+    if (!captureCtx) {
+      log('Canvas unsupported in this browser.');
+      stop();
+      return;
+    }
+
+    if (captureCanvas.width !== video.videoWidth || captureCanvas.height !== video.videoHeight) {
+      captureCanvas.width = video.videoWidth;
+      captureCanvas.height = video.videoHeight;
+    }
+
+    captureCtx.drawImage(video, 0, 0, captureCanvas.width, captureCanvas.height);
+    const dataUrl = captureCanvas.toDataURL('image/jpeg', 0.7);
 
     try {
       const res = await fetch('{% url "recognize_frame" %}', {
@@ -172,7 +328,7 @@
       }
       
       renderDetections(data.detections || []);
-      updatePresent(data.matched || []);
+      updateStatuses(data.matched || [], 'present');
       
       log(`Faces: ${data.faces_detected}. Matched: ${data.matched.length}.`);
 
@@ -224,24 +380,64 @@
     }
   }
 
-  function updatePresent(ids) {
-    for (const id of ids) {
-      const li = document.querySelector(`.student-item[data-id="${id}"]`);
-      if (!li) continue;
-      
-      if (li.classList.contains('absent')) {
-        li.classList.remove('absent');
-        li.classList.add('present');
-        
-        const badge = li.querySelector('.status-badge');
-        badge.classList.remove('absent');
-        badge.classList.add('present');
-        badge.textContent = 'Present';
+  function applyStatusUpdate(li, status) {
+    li.classList.remove('present', 'absent', 'late', 'excused');
+    li.classList.add(status);
+    const chip = li.querySelector('.status-chip');
+    if (chip) {
+      chip.className = `status-chip ${status}`;
+      const label = status.charAt(0).toUpperCase() + status.slice(1);
+      chip.textContent = label;
+    }
+  }
 
-        // Remove any mark-present button after marking
-        const btn = li.querySelector('button[data-action="mark-present"]');
-        if (btn) btn.remove();
+  function removeManualButton(li) {
+    if (!li) return;
+    const btn = li.querySelector('button[data-action="mark-present"]');
+    if (btn) btn.remove();
+  }
+
+  function setStudentStatus(id, status, previousOverride = null) {
+    const entry = snapshotMap.get(id);
+    if (!entry) return false;
+
+    const previousStatus = previousOverride ?? entry.status ?? 'absent';
+    const statusChanged = previousStatus !== status;
+
+    entry.status = status;
+    snapshotMap.set(id, entry);
+
+    if (statusChanged) {
+      if (previousStatus && Object.prototype.hasOwnProperty.call(summaryData, previousStatus)) {
+        summaryData[previousStatus] = Math.max(0, summaryData[previousStatus] - 1);
       }
+
+      if (!Object.prototype.hasOwnProperty.call(summaryData, status)) {
+        summaryData[status] = 0;
+      }
+      summaryData[status] = (summaryData[status] ?? 0) + 1;
+    }
+
+    const li = studentsList.querySelector(`.student-item[data-id="${id}"]`);
+    if (li) {
+      applyStatusUpdate(li, status);
+      if (status === 'present' || status === 'excused') {
+        removeManualButton(li);
+      }
+    }
+
+    return statusChanged;
+  }
+
+  function updateStatuses(ids, status = 'present') {
+    let changed = false;
+    for (const id of ids) {
+      if (setStudentStatus(id, status)) {
+        changed = true;
+      }
+    }
+    if (changed) {
+      refreshCounts();
     }
   }
 
@@ -250,19 +446,57 @@
   }
 
   function notice(msg) {
-    const el = document.getElementById('notice');
-    el.textContent = msg;
-    el.style.display = 'block';
+    noticeEl.textContent = msg;
+    noticeEl.style.display = 'block';
   }
+
+  function clearNotice() {
+    noticeEl.textContent = '';
+    noticeEl.style.display = 'none';
+  }
+
+  function handleOffline() {
+    notice('You appear to be offline. Manual updates may fail until the connection returns.');
+    log('Offline mode detected. Camera paused.');
+    startBtn.disabled = true;
+    stop();
+    showSpinner('Waiting for connection…');
+  }
+
+  function handleOnline() {
+    clearNotice();
+    hideSpinner();
+    log('Back online. Start the camera to resume recognition.');
+    startBtn.disabled = false;
+  }
+
+  window.addEventListener('offline', handleOffline);
+  window.addEventListener('online', handleOnline);
+
+  if (!navigator.onLine) {
+    handleOffline();
+  }
+
+  refreshCounts();
 
   startBtn.addEventListener('click', start);
   stopBtn.addEventListener('click', stop);
 
-  // Manual mark present handlers
-  document.getElementById('students').addEventListener('click', async (e) => {
+  if (classSelect) {
+    classSelect.addEventListener('change', () => {
+      const selected = classSelect.value;
+      if (!selected) return;
+      const separator = switchUrl.includes('?') ? '&' : '?';
+      window.location.href = `${switchUrl}${separator}class_id=${selected}`;
+    });
+  }
+
+  studentsList.addEventListener('click', async (e) => {
     const target = e.target;
     if (target && target.matches('button[data-action="mark-present"]')) {
       const studentId = target.getAttribute('data-student');
+      target.disabled = true;
+      clearNotice();
       try {
         const res = await fetch(`/core/api/mark-present/${studentId}/`, {
           method: 'POST',
@@ -270,14 +504,34 @@
         });
         const data = await res.json();
         if (!res.ok || !data.ok) throw new Error(data.error || 'Request failed');
-        updatePresent([parseInt(studentId)]);
+        const studentKey = parseInt(studentId, 10);
+        const status = data.status || 'excused';
+        const previousStatus = data.previous_status || null;
+        const changed = setStudentStatus(studentKey, status, previousStatus);
+        if (changed) {
+          refreshCounts();
+        }
+        if (status === 'excused' && document.body.contains(target)) {
+          target.remove();
+        }
+        clearNotice();
+        if (typeof data.limit_remaining === 'number') {
+          log(`Manual excused recorded. Remaining today: ${Math.max(0, data.limit_remaining)}`);
+        } else {
+          log('Manual excused recorded.');
+        }
+        if (document.body.contains(target)) {
+          target.disabled = false;
+        }
       } catch (err) {
-        log('Mark present error: ' + err);
+        const message = err && err.message ? err.message : String(err);
+        log('Mark present error: ' + message);
+        notice(message);
+        target.disabled = false;
       }
     }
   });
 
-  // Ensure camera is stopped when leaving the page
   window.addEventListener('beforeunload', () => {
     if (running) {
       stop();

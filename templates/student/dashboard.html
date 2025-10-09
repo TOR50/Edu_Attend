@@ -1,0 +1,102 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'css/view_attendance.css' %}">
+<link rel="stylesheet" href="{% static 'css/student_dashboard.css' %}">
+{% endblock %}
+
+{% block title %}Student Dashboard{% endblock %}
+
+{% block content %}
+<div class="student-dashboard attendance-view">
+  <div class="page-heading">
+    <div>
+      <h1>Student Dashboard</h1>
+      <p class="subtitle">Stay on top of your attendance progress this year.</p>
+    </div>
+    <div class="student-meta">
+      <span class="meta-tag">{{ student.get_full_name }}</span>
+      {% if student.school_class %}
+      <span class="meta-tag">{{ student.school_class }}</span>
+      {% endif %}
+      {% if student.roll_number %}
+      <span class="meta-tag">Roll No. {{ student.roll_number }}</span>
+      {% endif %}
+    </div>
+  </div>
+
+  <section class="score-card">
+    <div class="score-ring" aria-label="Attendance percentage">
+      <svg viewBox="0 0 120 120" role="img">
+        <title>Attendance percentage {{ attendance_percentage|floatformat:1 }}%</title>
+        <circle class="ring-bg" cx="60" cy="60" r="52" />
+        <circle class="ring-progress" cx="60" cy="60" r="52" style="--percent: {{ attendance_percentage|floatformat:1 }}" />
+      </svg>
+      <div class="score-value">
+        <span class="score-number">{{ attendance_percentage|floatformat:1 }}</span>
+        <span class="score-label">Attendance %</span>
+      </div>
+    </div>
+    <div class="score-copy">
+      <h2>Your attendance score</h2>
+      {% if total_marked %}
+      <p>You've been marked {{ status_counts.present }} times present out of {{ total_marked }} classes.</p>
+      {% else %}
+      <p>Once classes start and you're marked, your progress will appear here.</p>
+      {% endif %}
+      <div class="score-tags">
+        <span class="score-tag present">Present {{ status_counts.present }}</span>
+        <span class="score-tag absent">Absent {{ status_counts.absent }}</span>
+        <span class="score-tag late">Late {{ status_counts.late }}</span>
+        <span class="score-tag excused">Excused {{ status_counts.excused }}</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="history-card">
+    <header class="history-header">
+      <div>
+        <h2>Recent attendance history</h2>
+        <p class="subtitle">Latest records across your classes.</p>
+      </div>
+    </header>
+    {% if history %}
+    <div class="history-table-wrapper">
+      <table class="history-table">
+        <thead>
+          <tr>
+            <th scope="col">Date</th>
+            <th scope="col">Class</th>
+            <th scope="col">Status</th>
+            <th scope="col">Academic year</th>
+            <th scope="col">Confidence</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in history %}
+          <tr class="status-{{ item.status }}">
+            <td>{{ item.date|date:'M d, Y' }}</td>
+            <td>{{ item.class_label }}</td>
+            <td><span class="status-chip {{ item.status }}">{{ item.status|capfirst }}</span></td>
+            <td>{{ item.academic_year }}</td>
+            <td>
+              {% if item.confidence_percent is not None %}
+              {{ item.confidence_percent }}%
+              {% else %}
+              &mdash;
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="history-empty">
+      Your attendance history will appear here once records are available.
+    </div>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}
