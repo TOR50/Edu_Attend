@@ -35,5 +35,7 @@ RUN python manage.py collectstatic --noinput
 # Expose port (Render provides PORT env var)
 EXPOSE 8000
 
-# Entrypoint handles migrations then starts Gunicorn; run inside the conda env
-CMD ["micromamba", "run", "-n", "base", "bash", "-lc", "bash /app/entrypoint.sh"]
+# Ensure the conda env is active for any start command Render may inject
+ENTRYPOINT ["micromamba", "run", "-n", "base", "bash", "-lc"]
+# Default command runs our entrypoint; Render Start Command will override CMD but still pass through ENTRYPOINT
+CMD ["bash /app/entrypoint.sh"]
