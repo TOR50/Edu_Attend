@@ -35,6 +35,5 @@ RUN python manage.py collectstatic --noinput
 # Expose port (Render provides PORT env var)
 EXPOSE 8000
 
-# Entrypoint handles migrations then starts Gunicorn
-RUN chmod +x ./entrypoint.sh
-CMD ["bash", "-lc", "./entrypoint.sh"]
+# Entrypoint handles migrations then starts Gunicorn (invoke via bash to avoid exec bit issues)
+CMD ["bash", "-lc", "bash /app/entrypoint.sh"]
