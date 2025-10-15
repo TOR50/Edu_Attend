@@ -1,16 +1,27 @@
-FROM ageitgey/face_recognition:latest
+FROM mambaorg/micromamba:1.5.10
 
-# Prevent Python from writing .pyc files and enable unbuffered logs
+# Ensure conda base env is active in RUN/CMD
+ARG MAMBA_DOCKERFILE_ACTIVATE=1
+
+# Python env flags
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1
 
 WORKDIR /app
 
-# System deps (if you need additional, add here)
-# ageitgey/face_recognition already includes dlib, face_recognition, OpenCV, Python
+# Install Python and heavy libs via conda (prebuilt binaries): dlib, face_recognition, opencv, numpy, pillow, pip
+RUN micromamba install -y -n base -c conda-forge \
+    python=3.11 \
+    dlib \
+    face_recognition \
+    opencv \
+    numpy \
+    pillow \
+    pip \
+ && micromamba clean -a -y
 
-# Install Python deps first for better layer caching
+# Install pip dependencies
 COPY requirements.txt ./
 RUN pip install --upgrade pip && \
     pip install -r requirements.txt
@@ -26,4 +37,4 @@ EXPOSE 8000
 
 # Entrypoint handles migrations then starts Gunicorn
 RUN chmod +x ./entrypoint.sh
-CMD ["./entrypoint.sh"]
+CMD ["bash", "-lc", "./entrypoint.sh"]
