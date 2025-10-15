@@ -20,9 +20,14 @@ class SchoolClassAdmin(admin.ModelAdmin):
 
 @admin.register(Student)
 class StudentAdmin(admin.ModelAdmin):
-    list_display = ("get_full_name", "school_class", "roll_number")
+    list_display = ("get_full_name", "user", "school_class", "roll_number")
     list_filter = ("school_class",)
     search_fields = ("user__first_name", "user__last_name", "user__email", "roll_number")
+    # Require selecting an existing User when adding a Student in the admin
+    raw_id_fields = ("user",)
+    # Show face_encodings but don't allow editing directly
+    readonly_fields = ("face_encodings",)
+    fields = ("user", "school_class", "roll_number", "photo", "face_encodings")
 
     def get_full_name(self, obj):
         return obj.get_full_name()
