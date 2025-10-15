@@ -1,15 +1,10 @@
 services:
   - type: web
     name: edu-attend
-    env: python
+    env: docker
     plan: free
     region: oregon
-    buildCommand: |
-      pip install -r requirements.txt
-      python manage.py collectstatic --noinput
-      python manage.py migrate
-    startCommand: gunicorn config.wsgi:application
-    healthCheckPath: /
+    healthCheckPath: '/'
     envVars:
       - key: DJANGO_DEBUG
         value: "false"
@@ -19,3 +14,16 @@ services:
         value: "https://edu-attend.onrender.com"
       - key: DJANGO_SECRET_KEY
         generateValue: true
+      # Optional Postgres (Neon) via DATABASE_URL; defaults to SQLite if unset
+      - key: DATABASE_URL
+        value: ""
+      # Optional Cloudinary for media storage (images/uploads)
+      - key: CLOUDINARY_URL
+        value: ""
+      # Optional initial admin user creation on first boot
+      - key: DJANGO_SUPERUSER_USERNAME
+        value: ""
+      - key: DJANGO_SUPERUSER_PASSWORD
+        value: ""
+      - key: DJANGO_SUPERUSER_EMAIL
+        value: ""

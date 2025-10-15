@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+import dj_database_url
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -62,11 +63,13 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'config.wsgi.application'
 
+# Database: default to SQLite locally; use DATABASE_URL if provided (e.g., Neon Postgres)
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-    }
+    'default': dj_database_url.config(
+        default=f"sqlite:///{BASE_DIR / 'db.sqlite3'}",
+        conn_max_age=600,
+        ssl_require=False,
+    )
 }
 
 AUTH_PASSWORD_VALIDATORS = [
@@ -89,8 +92,15 @@ STATICFILES_DIRS: list[str] = []
 if _WHITENOISE_AVAILABLE and not DEBUG:
     STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
+# Media files: use Cloudinary when configured, otherwise local media
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
+
+_cloudinary_url = os.environ.get('CLOUDINARY_URL')
+if _cloudinary_url:
+    INSTALLED_APPS += ['cloudinary', 'cloudinary_storage']
+    DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
+    # Optional: serve static via Whitenoise; media via Cloudinary
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
