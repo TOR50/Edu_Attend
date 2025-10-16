@@ -1,0 +1,11 @@
+# Don’t copy local dev artifacts into the build context
+.git
+.gitignore
+node_modules
+__pycache__
+*.pyc
+media/
+.env
+.DS_Store
+.vscode
+.idea

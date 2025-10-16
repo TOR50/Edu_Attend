@@ -33,8 +33,11 @@ COPY . .
 RUN python manage.py collectstatic --noinput
 
 # Ensure media directory exists and is writable by any runtime user
-RUN mkdir -p /app/media \
- && chmod -R 0777 /app/media
+USER root
+# Ensure app files are owned by runtime user and media folder exists
+RUN chown -R mambauser:mambauser /app \
+ && mkdir -p /app/media
+USER mambauser
 
 # Expose port (Render provides PORT env var)
 EXPOSE 8000
