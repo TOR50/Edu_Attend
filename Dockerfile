@@ -32,13 +32,9 @@ COPY . .
 # Collect static at build time; media will be handled by storage backend
 RUN python manage.py collectstatic --noinput
 
-# Ensure runtime user owns app files and media directory is writable
-ARG MAMBA_USER=mambauser
+# Ensure media directory exists and is writable by any runtime user
 RUN mkdir -p /app/media \
- && chown -R ${MAMBA_USER}:${MAMBA_USER} /app
-
-# Drop to non-root user provided by micromamba image
-USER ${MAMBA_USER}
+ && chmod -R 0777 /app/media
 
 # Expose port (Render provides PORT env var)
 EXPOSE 8000
