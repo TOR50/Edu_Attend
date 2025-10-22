@@ -94,7 +94,28 @@ if _WHITENOISE_AVAILABLE and not DEBUG:
 
 # Media files: use Cloudinary when configured, otherwise local media
 MEDIA_URL = '/media/'
-MEDIA_ROOT = BASE_DIR / 'media'
+
+
+def _resolve_media_root() -> Path:
+    """Pick a writable media directory, preferring env override."""
+    configured = os.environ.get('DJANGO_MEDIA_ROOT')
+    candidates: list[Path] = []
+    if configured:
+        candidates.append(Path(configured))
+    candidates.append(BASE_DIR / 'media')
+    candidates.append(Path('/tmp/django_media'))
+
+    for candidate in candidates:
+        try:
+            candidate.mkdir(parents=True, exist_ok=True)
+        except OSError:
+            continue
+        return candidate
+
+    raise RuntimeError('No writable MEDIA_ROOT directory is available.')
+
+
+MEDIA_ROOT = _resolve_media_root()
 
 _cloudinary_url = os.environ.get('CLOUDINARY_URL')
 if _cloudinary_url:
