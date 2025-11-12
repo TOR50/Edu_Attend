@@ -65,17 +65,29 @@ jobs:
         working-directory: terraform
         run: |
           echo "Checking if resource group already exists in Azure..."
-          RG_EXISTS=$(az group exists --name eduattend-devops-rg --query value -o tsv)
+          RG_EXISTS=$(az group exists --name eduattend-devops-rg)
           
           if [ "$RG_EXISTS" = "true" ]; then
-            echo "Resource group exists in Azure, importing into Terraform state..."
-            terraform import -auto-approve \
-              azurerm_resource_group.eduattend \
-              /subscriptions/${{ secrets.AZURE_SUBSCRIPTION_ID }}/resourceGroups/eduattend-devops-rg \
-              || echo "Import completed (resource may already be in state)"
+            echo "Resource group exists in Azure. Checking Terraform state..."
+            
+            # Check if resource is already in state
+            if terraform state list | grep -q "azurerm_resource_group.eduattend"; then
+              echo "Resource group already in Terraform state, skipping import..."
+            else
+              echo "Importing resource group into Terraform state..."
+              terraform import \
+                azurerm_resource_group.eduattend \
+                /subscriptions/${{ secrets.AZURE_SUBSCRIPTION_ID }}/resourceGroups/eduattend-devops-rg \
+                || echo "Import failed or resource already managed"
+            fi
           else
-            echo "Resource group does not exist, will be created..."
+            echo "Resource group does not exist, will be created by Terraform..."
           fi
+
+      - name: Terraform Refresh
+        working-directory: terraform
+        run: terraform refresh
+        continue-on-error: true
 
       - name: Terraform Plan
         working-directory: terraform

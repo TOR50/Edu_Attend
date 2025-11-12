@@ -21,6 +21,11 @@ resource "azurerm_resource_group" "eduattend" {
   name     = var.resource_group_name
   location = var.location
   tags     = var.tags
+  
+  lifecycle {
+    prevent_destroy = false
+    ignore_changes  = [tags]
+  }
 }
 
 # Virtual Network
