@@ -81,39 +81,49 @@
         name: docker
         state: present
 
+    - name: Wait for Docker daemon to be ready
+      pause:
+        seconds: 5
+
     - name: Configure UFW firewall - Allow SSH
       ufw:
         rule: allow
         port: '22'
         proto: tcp
+      ignore_errors: yes
 
     - name: Configure UFW firewall - Allow HTTP
       ufw:
         rule: allow
         port: '80'
         proto: tcp
+      ignore_errors: yes
 
     - name: Configure UFW firewall - Allow HTTPS
       ufw:
         rule: allow
         port: '443'
         proto: tcp
+      ignore_errors: yes
 
     - name: Configure UFW firewall - Allow Django (8000)
       ufw:
         rule: allow
         port: '8000'
         proto: tcp
+      ignore_errors: yes
 
     - name: Configure UFW firewall - Allow Nagios (8080)
       ufw:
         rule: allow
         port: '8080'
         proto: tcp
+      ignore_errors: yes
 
     - name: Enable UFW
       ufw:
         state: enabled
+      ignore_errors: yes
 
     - name: Create application directory
       file:

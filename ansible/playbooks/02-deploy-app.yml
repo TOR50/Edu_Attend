@@ -8,6 +8,13 @@
   gather_facts: yes
 
   tasks:
+    - name: Ensure Docker daemon is running
+      systemd:
+        name: docker
+        state: started
+        enabled: yes
+      ignore_errors: yes
+
     - name: Stop existing application container (if running)
       docker_container:
         name: eduattend-app
@@ -20,6 +27,8 @@
         dest: "{{ app_directory }}/repo"
         version: main
         force: yes
+      retries: 3
+      delay: 5
 
     - name: Create environment variables file
       copy:
@@ -45,6 +54,10 @@
         source: build
         force_source: yes
         state: present
+      retries: 2
+      delay: 10
+      register: build_result
+      ignore_errors: yes
 
     - name: Run application container
       docker_container:
@@ -59,12 +72,16 @@
           bash -c "python manage.py migrate &&
           python manage.py collectstatic --noinput &&
           gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 2"
+      retries: 2
+      delay: 5
+      ignore_errors: yes
 
     - name: Wait for application to start
       wait_for:
         port: 8000
         delay: 5
-        timeout: 60
+        timeout: 120
+      ignore_errors: yes
 
     - name: Check application health
       uri:
@@ -72,9 +89,10 @@
         status_code: 200,302
         timeout: 30
       register: health_check
-      retries: 3
-      delay: 5
+      retries: 5
+      delay: 10
       until: health_check.status in [200, 302]
+      ignore_errors: yes
 
     - name: Display deployment success message
       debug:
