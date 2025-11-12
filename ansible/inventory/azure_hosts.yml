@@ -4,9 +4,9 @@
 all:
   hosts:
     eduattend-azure-vm:
-      ansible_host: REPLACE_WITH_VM_IP  # Get from: terraform output vm_public_ip
+      ansible_host: 13.75.49.209  # VM IP from Terraform output
       ansible_user: azureuser
-      ansible_ssh_private_key_file: ../../.ssh/azure_vm_key
+      ansible_ssh_private_key_file: ../.ssh/azure_vm_key
       ansible_python_interpreter: /usr/bin/python3
       
   vars:
