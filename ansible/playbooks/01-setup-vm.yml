@@ -69,19 +69,17 @@
         name: docker
         enabled: yes
         state: started
-      register: docker_service
-      until: docker_service is succeeded
-      retries: 3
-      delay: 5
 
-    - name: Wait for Docker daemon to be ready
-      pause:
-        seconds: 10
+    - name: Wait for Docker socket to be available
+      wait_for:
+        path: /var/run/docker.sock
+        delay: 2
+        timeout: 30
 
     - name: Verify Docker is working
       command: docker ps
       register: docker_verify
-      retries: 3
+      retries: 5
       delay: 5
       until: docker_verify.rc == 0
 

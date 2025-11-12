@@ -13,14 +13,12 @@
         name: docker
         state: started
         enabled: yes
-      register: docker_start
-      until: docker_start is succeeded
-      retries: 3
-      delay: 5
 
-    - name: Wait for Docker to be ready
-      pause:
-        seconds: 5
+    - name: Wait for Docker socket to be available
+      wait_for:
+        path: /var/run/docker.sock
+        delay: 2
+        timeout: 30
 
     - name: Stop and remove existing application container
       docker_container:
