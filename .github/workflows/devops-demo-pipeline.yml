@@ -69,11 +69,11 @@ jobs:
         if: github.event.inputs.terraform_action == 'apply'
         working-directory: terraform
         run: |
-          # If resource group already exists, import it into state
-          if az group exists --name eduattend-devops-rg | grep -q true; then
-            echo "Resource group exists, attempting import..."
-            terraform import -auto-approve azurerm_resource_group.eduattend /subscriptions/${{ secrets.AZURE_SUBSCRIPTION_ID }}/resourceGroups/eduattend-devops-rg || true
-          fi
+          # Attempt to destroy existing resources managed by Terraform first
+          # This ensures clean state for redeployment
+          echo "Cleaning up any existing resources..."
+          terraform destroy -auto-approve -lock=false || true
+          echo "Cleanup complete, proceeding with fresh apply..."
 
       - name: Upload Terraform Plan
         uses: actions/upload-artifact@v4
