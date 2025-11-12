@@ -1,0 +1,116 @@
+---
+# Playbook 1: Setup Azure VM
+# Prepares the VM with Docker, dependencies, and security configurations
+
+- name: Setup EduAttend Azure VM
+  hosts: all
+  become: yes
+  gather_facts: yes
+
+  tasks:
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+    - name: Install required system packages
+      apt:
+        name:
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - gnupg
+          - lsb-release
+          - python3-pip
+          - python3-docker
+          - git
+          - ufw
+          - fail2ban
+        state: present
+
+    - name: Check if Docker is installed
+      command: docker --version
+      register: docker_check
+      ignore_errors: yes
+      changed_when: false
+
+    - name: Display Docker version
+      debug:
+        msg: "Docker is already installed: {{ docker_check.stdout }}"
+      when: docker_check.rc == 0
+
+    - name: Ensure Docker service is enabled and started
+      systemd:
+        name: docker
+        enabled: yes
+        state: started
+
+    - name: Add user to docker group
+      user:
+        name: "{{ ansible_user }}"
+        groups: docker
+        append: yes
+
+    - name: Install Docker Python library
+      pip:
+        name: docker
+        state: present
+
+    - name: Configure UFW firewall - Allow SSH
+      ufw:
+        rule: allow
+        port: '22'
+        proto: tcp
+
+    - name: Configure UFW firewall - Allow HTTP
+      ufw:
+        rule: allow
+        port: '80'
+        proto: tcp
+
+    - name: Configure UFW firewall - Allow HTTPS
+      ufw:
+        rule: allow
+        port: '443'
+        proto: tcp
+
+    - name: Configure UFW firewall - Allow Django (8000)
+      ufw:
+        rule: allow
+        port: '8000'
+        proto: tcp
+
+    - name: Configure UFW firewall - Allow Nagios (8080)
+      ufw:
+        rule: allow
+        port: '8080'
+        proto: tcp
+
+    - name: Enable UFW
+      ufw:
+        state: enabled
+
+    - name: Create application directory
+      file:
+        path: "{{ app_directory }}"
+        state: directory
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        mode: '0755'
+
+    - name: Create environment file directory
+      file:
+        path: "{{ app_directory }}"
+        state: directory
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        mode: '0755'
+
+    - name: Display completion message
+      debug:
+        msg: |
+          ✅ VM Setup Complete!
+          - Docker installed and running
+          - Firewall configured
+          - Application directory created
+          - Ready for application deployment

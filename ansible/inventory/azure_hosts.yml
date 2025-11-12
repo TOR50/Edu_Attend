@@ -1,0 +1,36 @@
+# Ansible Inventory for EduAttend Azure VM
+# Update the ansible_host IP after running terraform apply
+
+all:
+  hosts:
+    eduattend-azure-vm:
+      ansible_host: REPLACE_WITH_VM_IP  # Get from: terraform output vm_public_ip
+      ansible_user: azureuser
+      ansible_ssh_private_key_file: ../../.ssh/azure_vm_key
+      ansible_python_interpreter: /usr/bin/python3
+      
+  vars:
+    # Application Configuration
+    app_name: eduattend
+    app_directory: /home/azureuser/eduattend
+    container_registry: ghcr.io
+    container_image: ghcr.io/tor50/tor50-capstone_kc739_cse399:latest
+    
+    # GitHub Container Registry Credentials
+    ghcr_username: "{{ lookup('env', 'GHCR_USERNAME') }}"
+    ghcr_token: "{{ lookup('env', 'GHCR_TOKEN') }}"
+    
+    # Application Environment Variables
+    django_secret_key: "{{ lookup('env', 'DJANGO_SECRET_KEY') | default('demo-secret-key-change-in-production', true) }}"
+    django_debug: "false"
+    django_allowed_hosts: "{{ ansible_host }},localhost,127.0.0.1"
+    
+    # Database (reuse Neon PostgreSQL)
+    database_url: "{{ lookup('env', 'DATABASE_URL') | default('', true) }}"
+    
+    # Cloudinary (reuse existing)
+    cloudinary_url: "{{ lookup('env', 'CLOUDINARY_URL') | default('', true) }}"
+    
+    # Monitoring
+    nagios_admin_email: rauhan.official@gmail.com
+    nagios_admin_password: nagiosadmin123  # Change this!

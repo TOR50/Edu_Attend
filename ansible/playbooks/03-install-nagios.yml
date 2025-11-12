@@ -1,0 +1,266 @@
+---
+# Playbook 3: Install and Configure Nagios Monitoring
+# Sets up Nagios Core for monitoring EduAttend application
+
+- name: Install Nagios Monitoring
+  hosts: all
+  become: yes
+  gather_facts: yes
+
+  vars:
+    nagios_version: "4.4.14"
+    nagios_plugins_version: "2.4.6"
+    nagios_install_dir: /usr/local/nagios
+    render_app_url: "https://edu-attend.onrender.com"
+    azure_app_url: "http://{{ ansible_host }}:8000"
+
+  tasks:
+    - name: Install Nagios dependencies
+      apt:
+        name:
+          - apache2
+          - php
+          - libapache2-mod-php
+          - php-gd
+          - libgd-dev
+          - unzip
+          - build-essential
+          - libssl-dev
+          - openssl
+          - libperl-dev
+          - libnet-snmp-perl
+          - gettext
+          - autoconf
+          - gcc
+          - libc6
+          - make
+          - wget
+          - apache2-utils
+        state: present
+
+    - name: Create Nagios user and group
+      user:
+        name: nagios
+        system: yes
+        shell: /bin/bash
+        create_home: yes
+
+    - name: Add www-data to nagios group
+      user:
+        name: www-data
+        groups: nagios
+        append: yes
+
+    - name: Download Nagios Core
+      get_url:
+        url: "https://github.com/NagiosEnterprises/nagioscore/archive/nagios-{{ nagios_version }}.tar.gz"
+        dest: /tmp/nagios.tar.gz
+        mode: '0644'
+
+    - name: Extract Nagios Core
+      unarchive:
+        src: /tmp/nagios.tar.gz
+        dest: /tmp/
+        remote_src: yes
+        creates: /tmp/nagioscore-nagios-{{ nagios_version }}
+
+    - name: Compile and install Nagios Core
+      shell: |
+        cd /tmp/nagioscore-nagios-{{ nagios_version }}
+        ./configure --with-httpd-conf=/etc/apache2/sites-enabled
+        make all
+        make install-groups-users
+        usermod -a -G nagios www-data
+        make install
+        make install-daemoninit
+        make install-commandmode
+        make install-config
+        make install-webconf
+      args:
+        creates: "{{ nagios_install_dir }}/bin/nagios"
+
+    - name: Download Nagios Plugins
+      get_url:
+        url: "https://github.com/nagios-plugins/nagios-plugins/releases/download/release-{{ nagios_plugins_version }}/nagios-plugins-{{ nagios_plugins_version }}.tar.gz"
+        dest: /tmp/nagios-plugins.tar.gz
+        mode: '0644'
+
+    - name: Extract Nagios Plugins
+      unarchive:
+        src: /tmp/nagios-plugins.tar.gz
+        dest: /tmp/
+        remote_src: yes
+        creates: /tmp/nagios-plugins-{{ nagios_plugins_version }}
+
+    - name: Compile and install Nagios Plugins
+      shell: |
+        cd /tmp/nagios-plugins-{{ nagios_plugins_version }}
+        ./configure --with-nagios-user=nagios --with-nagios-group=nagios
+        make
+        make install
+      args:
+        creates: "{{ nagios_install_dir }}/libexec/check_http"
+
+    - name: Create Nagios admin user
+      htpasswd:
+        path: "{{ nagios_install_dir }}/etc/htpasswd.users"
+        name: nagiosadmin
+        password: "{{ nagios_admin_password }}"
+        owner: root
+        group: www-data
+        mode: '0640'
+
+    - name: Configure Apache for Nagios
+      apache2_module:
+        name: "{{ item }}"
+        state: present
+      loop:
+        - rewrite
+        - cgi
+      notify: restart apache2
+
+    - name: Change Apache port to 8080
+      replace:
+        path: /etc/apache2/ports.conf
+        regexp: 'Listen 80'
+        replace: 'Listen 8080'
+
+    - name: Update Nagios Apache config port
+      replace:
+        path: /etc/apache2/sites-enabled/nagios.conf
+        regexp: '<VirtualHost \*:80>'
+        replace: '<VirtualHost *:8080>'
+
+    - name: Copy EduAttend monitoring configuration
+      copy:
+        dest: "{{ nagios_install_dir }}/etc/objects/eduattend.cfg"
+        content: |
+          # EduAttend Application Monitoring Configuration
+          
+          # Host definition for Render deployment
+          define host {
+              use                     linux-server
+              host_name               eduattend-render
+              alias                   EduAttend on Render
+              address                 edu-attend.onrender.com
+              max_check_attempts      5
+              check_period            24x7
+              notification_interval   30
+              notification_period     24x7
+          }
+          
+          # Host definition for Azure deployment
+          define host {
+              use                     linux-server
+              host_name               eduattend-azure
+              alias                   EduAttend on Azure
+              address                 {{ ansible_host }}
+              max_check_attempts      5
+              check_period            24x7
+              notification_interval   30
+              notification_period     24x7
+          }
+          
+          # Service: HTTP check for Render
+          define service {
+              use                     generic-service
+              host_name               eduattend-render
+              service_description     HTTPS
+              check_command           check_https!edu-attend.onrender.com!/
+              check_interval          5
+              retry_interval          1
+          }
+          
+          # Service: HTTP check for Azure
+          define service {
+              use                     generic-service
+              host_name               eduattend-azure
+              service_description     HTTP
+              check_command           check_http!-p 8000
+              check_interval          5
+              retry_interval          1
+          }
+          
+          # Service: Response time check for Render
+          define service {
+              use                     generic-service
+              host_name               eduattend-render
+              service_description     Response Time
+              check_command           check_https!edu-attend.onrender.com!/
+              check_interval          10
+              retry_interval          2
+          }
+          
+          # Service: Response time check for Azure
+          define service {
+              use                     generic-service
+              host_name               eduattend-azure
+              service_description     Response Time
+              check_command           check_http!-p 8000
+              check_interval          10
+              retry_interval          2
+          }
+
+    - name: Add EduAttend config to nagios.cfg
+      lineinfile:
+        path: "{{ nagios_install_dir }}/etc/nagios.cfg"
+        line: "cfg_file={{ nagios_install_dir }}/etc/objects/eduattend.cfg"
+        insertafter: "^cfg_file="
+
+    - name: Configure Nagios contacts
+      replace:
+        path: "{{ nagios_install_dir }}/etc/objects/contacts.cfg"
+        regexp: 'email\s+nagios@localhost'
+        replace: 'email                {{ nagios_admin_email }}'
+
+    - name: Verify Nagios configuration
+      command: "{{ nagios_install_dir }}/bin/nagios -v {{ nagios_install_dir }}/etc/nagios.cfg"
+      register: nagios_verify
+      changed_when: false
+
+    - name: Display verification results
+      debug:
+        var: nagios_verify.stdout_lines
+
+    - name: Enable and start Nagios
+      systemd:
+        name: nagios
+        enabled: yes
+        state: started
+
+    - name: Restart Apache
+      systemd:
+        name: apache2
+        state: restarted
+
+    - name: Display Nagios access information
+      debug:
+        msg: |
+          ✅ Nagios Monitoring Installed Successfully!
+          
+          🌐 Access Nagios Web Interface:
+          URL: http://{{ ansible_host }}:8080/nagios
+          Username: nagiosadmin
+          Password: {{ nagios_admin_password }}
+          
+          📊 Monitored Services:
+          ✓ Render App: https://edu-attend.onrender.com
+          ✓ Azure App: http://{{ ansible_host }}:8000
+          ✓ HTTP Health Checks
+          ✓ Response Time Monitoring
+          
+          📧 Alert Email: {{ nagios_admin_email }}
+          
+          🔄 Check Interval: 5 minutes
+          
+          Next Steps:
+          1. Access Nagios dashboard
+          2. Verify all services show GREEN status
+          3. Test alert notifications
+          4. Review monitoring data
+
+  handlers:
+    - name: restart apache2
+      systemd:
+        name: apache2
+        state: restarted

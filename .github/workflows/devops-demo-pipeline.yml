@@ -1,0 +1,278 @@
+name: DevOps Demo Pipeline
+
+on:
+  workflow_dispatch:  # Manual trigger only
+    inputs:
+      terraform_action:
+        description: 'Terraform action'
+        required: true
+        default: 'plan'
+        type: choice
+        options:
+          - plan
+          - apply
+          - destroy
+      deploy_application:
+        description: 'Deploy application with Ansible'
+        required: true
+        default: true
+        type: boolean
+      setup_monitoring:
+        description: 'Setup Nagios monitoring'
+        required: true
+        default: false
+        type: boolean
+
+env:
+  ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+  ARM_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+  ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+  ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+  TERRAFORM_VERSION: '1.6.0'
+  ANSIBLE_VERSION: '2.15.0'
+
+jobs:
+  terraform:
+    name: Terraform Infrastructure
+    runs-on: ubuntu-latest
+    outputs:
+      vm_ip: ${{ steps.tf_output.outputs.vm_ip }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Terraform Init
+        working-directory: terraform
+        run: terraform init
+
+      - name: Terraform Validate
+        working-directory: terraform
+        run: terraform validate
+
+      - name: Terraform Plan
+        working-directory: terraform
+        run: terraform plan -out=tfplan
+        continue-on-error: false
+
+      - name: Upload Terraform Plan
+        uses: actions/upload-artifact@v3
+        with:
+          name: terraform-plan
+          path: terraform/tfplan
+
+      - name: Terraform Apply
+        if: github.event.inputs.terraform_action == 'apply'
+        working-directory: terraform
+        run: terraform apply -auto-approve tfplan
+
+      - name: Terraform Destroy
+        if: github.event.inputs.terraform_action == 'destroy'
+        working-directory: terraform
+        run: terraform destroy -auto-approve
+
+      - name: Get Terraform Outputs
+        if: github.event.inputs.terraform_action == 'apply'
+        id: tf_output
+        working-directory: terraform
+        run: |
+          VM_IP=$(terraform output -raw vm_public_ip)
+          echo "vm_ip=$VM_IP" >> $GITHUB_OUTPUT
+          echo "VM IP: $VM_IP"
+
+      - name: Save VM IP to artifact
+        if: github.event.inputs.terraform_action == 'apply'
+        run: |
+          mkdir -p outputs
+          echo "${{ steps.tf_output.outputs.vm_ip }}" > outputs/vm_ip.txt
+
+      - name: Upload VM IP
+        if: github.event.inputs.terraform_action == 'apply'
+        uses: actions/upload-artifact@v3
+        with:
+          name: vm-ip
+          path: outputs/vm_ip.txt
+
+  ansible_deploy:
+    name: Deploy Application with Ansible
+    needs: terraform
+    runs-on: ubuntu-latest
+    if: |
+      github.event.inputs.deploy_application == 'true' && 
+      github.event.inputs.terraform_action == 'apply'
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download VM IP
+        uses: actions/download-artifact@v3
+        with:
+          name: vm-ip
+          path: outputs
+
+      - name: Read VM IP
+        id: read_ip
+        run: |
+          VM_IP=$(cat outputs/vm_ip.txt)
+          echo "vm_ip=$VM_IP" >> $GITHUB_OUTPUT
+          echo "Deploying to VM: $VM_IP"
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Ansible
+        run: |
+          pip install ansible
+          ansible --version
+
+      - name: Setup SSH Key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.AZURE_VM_SSH_KEY }}" > ~/.ssh/azure_vm_key
+          chmod 600 ~/.ssh/azure_vm_key
+
+      - name: Update Ansible Inventory
+        working-directory: ansible
+        run: |
+          sed -i "s/REPLACE_WITH_VM_IP/${{ steps.read_ip.outputs.vm_ip }}/g" inventory/azure_hosts.yml
+          cat inventory/azure_hosts.yml
+
+      - name: Test Ansible Connection
+        working-directory: ansible
+        env:
+          ANSIBLE_HOST_KEY_CHECKING: 'False'
+        run: |
+          ansible all -m ping -i inventory/azure_hosts.yml
+
+      - name: Run VM Setup Playbook
+        working-directory: ansible
+        env:
+          ANSIBLE_HOST_KEY_CHECKING: 'False'
+        run: |
+          ansible-playbook -i inventory/azure_hosts.yml playbooks/01-setup-vm.yml
+
+      - name: Run Application Deployment
+        working-directory: ansible
+        env:
+          ANSIBLE_HOST_KEY_CHECKING: 'False'
+          GHCR_USERNAME: ${{ secrets.GHCR_USERNAME }}
+          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          CLOUDINARY_URL: ${{ secrets.CLOUDINARY_URL }}
+          DJANGO_SECRET_KEY: ${{ secrets.DJANGO_SECRET_KEY }}
+        run: |
+          ansible-playbook -i inventory/azure_hosts.yml playbooks/02-deploy-app.yml
+
+      - name: Verify Application
+        run: |
+          sleep 30
+          curl -f http://${{ steps.read_ip.outputs.vm_ip }}:8000 || exit 1
+
+  ansible_monitoring:
+    name: Setup Nagios Monitoring
+    needs: [terraform, ansible_deploy]
+    runs-on: ubuntu-latest
+    if: |
+      github.event.inputs.setup_monitoring == 'true' && 
+      github.event.inputs.terraform_action == 'apply'
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download VM IP
+        uses: actions/download-artifact@v3
+        with:
+          name: vm-ip
+          path: outputs
+
+      - name: Read VM IP
+        id: read_ip
+        run: |
+          VM_IP=$(cat outputs/vm_ip.txt)
+          echo "vm_ip=$VM_IP" >> $GITHUB_OUTPUT
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Ansible
+        run: |
+          pip install ansible
+          ansible --version
+
+      - name: Setup SSH Key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.AZURE_VM_SSH_KEY }}" > ~/.ssh/azure_vm_key
+          chmod 600 ~/.ssh/azure_vm_key
+
+      - name: Update Ansible Inventory
+        working-directory: ansible
+        run: |
+          sed -i "s/REPLACE_WITH_VM_IP/${{ steps.read_ip.outputs.vm_ip }}/g" inventory/azure_hosts.yml
+
+      - name: Run Nagios Installation
+        working-directory: ansible
+        env:
+          ANSIBLE_HOST_KEY_CHECKING: 'False'
+        run: |
+          ansible-playbook -i inventory/azure_hosts.yml playbooks/03-install-nagios.yml
+
+      - name: Verify Nagios
+        run: |
+          sleep 60
+          curl -f http://${{ steps.read_ip.outputs.vm_ip }}:8080/nagios || exit 1
+
+  summary:
+    name: Deployment Summary
+    needs: [terraform, ansible_deploy, ansible_monitoring]
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+      - name: Download VM IP
+        if: github.event.inputs.terraform_action == 'apply'
+        uses: actions/download-artifact@v3
+        with:
+          name: vm-ip
+          path: outputs
+        continue-on-error: true
+
+      - name: Generate Summary
+        run: |
+          echo "# 🚀 DevOps Demo Pipeline Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Execution Details" >> $GITHUB_STEP_SUMMARY
+          echo "- **Terraform Action:** ${{ github.event.inputs.terraform_action }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Deploy Application:** ${{ github.event.inputs.deploy_application }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Setup Monitoring:** ${{ github.event.inputs.setup_monitoring }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ -f outputs/vm_ip.txt ]; then
+            VM_IP=$(cat outputs/vm_ip.txt)
+            echo "## 🌐 Access URLs" >> $GITHUB_STEP_SUMMARY
+            echo "- **Application:** http://$VM_IP:8000" >> $GITHUB_STEP_SUMMARY
+            echo "- **Nagios:** http://$VM_IP:8080/nagios" >> $GITHUB_STEP_SUMMARY
+            echo "- **SSH:** \`ssh -i .ssh/azure_vm_key azureuser@$VM_IP\`" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## ✅ Completed Steps" >> $GITHUB_STEP_SUMMARY
+          echo "- [x] Infrastructure provisioned with Terraform" >> $GITHUB_STEP_SUMMARY
+          echo "- [x] Application deployed with Ansible" >> $GITHUB_STEP_SUMMARY
+          echo "- [x] Monitoring configured with Nagios" >> $GITHUB_STEP_SUMMARY

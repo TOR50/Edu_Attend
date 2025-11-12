@@ -1,0 +1,48 @@
+#cloud-config
+# Cloud-init configuration for EduAttend Azure VM
+
+packages:
+  - docker.io
+  - docker-compose
+  - python3-pip
+  - git
+  - curl
+  - wget
+  - unzip
+
+package_update: true
+package_upgrade: true
+
+runcmd:
+  # Add user to docker group
+  - usermod -aG docker ${admin_username}
+  
+  # Enable and start Docker
+  - systemctl enable docker
+  - systemctl start docker
+  
+  # Install Docker Compose v2
+  - mkdir -p /usr/local/lib/docker/cli-plugins
+  - curl -SL https://github.com/docker/compose/releases/download/v2.23.0/docker-compose-linux-x86_64 -o /usr/local/lib/docker/cli-plugins/docker-compose
+  - chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
+  
+  # Create app directory
+  - mkdir -p /home/${admin_username}/eduattend
+  - chown ${admin_username}:${admin_username} /home/${admin_username}/eduattend
+  
+  # Install Ansible for local configuration
+  - pip3 install ansible
+
+write_files:
+  - path: /etc/docker/daemon.json
+    content: |
+      {
+        "log-driver": "json-file",
+        "log-opts": {
+          "max-size": "10m",
+          "max-file": "3"
+        }
+      }
+    permissions: '0644'
+
+final_message: "EduAttend Azure VM is ready! Cloud-init completed in $UPTIME seconds"

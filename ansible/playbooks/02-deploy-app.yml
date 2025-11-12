@@ -1,0 +1,91 @@
+---
+# Playbook 2: Deploy EduAttend Application
+# Pulls Docker container and runs the Django application
+
+- name: Deploy EduAttend Application
+  hosts: all
+  become: yes
+  gather_facts: yes
+
+  tasks:
+    - name: Log in to GitHub Container Registry
+      docker_login:
+        registry: "{{ container_registry }}"
+        username: "{{ ghcr_username }}"
+        password: "{{ ghcr_token }}"
+        reauthorize: yes
+      when: ghcr_username != "" and ghcr_token != ""
+
+    - name: Pull latest application container image
+      docker_image:
+        name: "{{ container_image }}"
+        source: pull
+        force_source: yes
+
+    - name: Stop existing application container (if running)
+      docker_container:
+        name: eduattend-app
+        state: absent
+      ignore_errors: yes
+
+    - name: Create environment variables file
+      copy:
+        dest: "{{ app_directory }}/app.env"
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        mode: '0600'
+        content: |
+          DJANGO_SECRET_KEY={{ django_secret_key }}
+          DJANGO_DEBUG={{ django_debug }}
+          DJANGO_ALLOWED_HOSTS={{ django_allowed_hosts }}
+          DATABASE_URL={{ database_url }}
+          CLOUDINARY_URL={{ cloudinary_url }}
+          DJANGO_CSRF_TRUSTED_ORIGINS=http://{{ ansible_host }},https://{{ ansible_host }}
+
+    - name: Run application container
+      docker_container:
+        name: eduattend-app
+        image: "{{ container_image }}"
+        state: started
+        restart_policy: unless-stopped
+        ports:
+          - "8000:8000"
+        env_file: "{{ app_directory }}/app.env"
+        command: >
+          bash -c "python manage.py migrate &&
+          python manage.py collectstatic --noinput &&
+          gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 2"
+
+    - name: Wait for application to start
+      wait_for:
+        port: 8000
+        delay: 5
+        timeout: 60
+
+    - name: Check application health
+      uri:
+        url: "http://localhost:8000/"
+        status_code: 200,302
+        timeout: 30
+      register: health_check
+      retries: 3
+      delay: 5
+      until: health_check.status in [200, 302]
+
+    - name: Display deployment success message
+      debug:
+        msg: |
+          ✅ Application Deployed Successfully!
+          
+          Access your application:
+          🌐 http://{{ ansible_host }}:8000
+          
+          Container Status:
+          📦 Image: {{ container_image }}
+          🔄 Restart Policy: unless-stopped
+          
+          Next Steps:
+          1. Access the application in your browser
+          2. Login with your credentials
+          3. Test face recognition features
+          4. Proceed to Nagios monitoring setup
