@@ -1,6 +1,6 @@
 ---
-# Playbook 2: Deploy EduAttend Application
-# Pulls Docker container and runs the Django application
+# Playbook 2: Deploy EduAttend Application (Simplified)
+# Builds and runs the Django application in Docker
 
 - name: Deploy EduAttend Application
   hosts: all
@@ -8,59 +8,10 @@
   gather_facts: yes
 
   tasks:
-    - name: Restart Docker daemon to ensure it's running properly
-      systemd:
-        name: docker
-        state: restarted
-        daemon_reload: yes
-        enabled: yes
-      ignore_errors: yes
-
-    - name: Wait for Docker daemon to be ready
-      pause:
-        seconds: 10
-
-    - name: Verify Docker is working
-      command: docker ps
-      register: docker_test
-      ignore_errors: yes
-      changed_when: false
-
-    - name: Display Docker status
-      debug:
-        msg: "Docker status: {{ 'Running' if docker_test.rc == 0 else 'Not running - will attempt to fix' }}"
-
-    - name: Force restart Docker if not working
-      shell: |
-        systemctl stop docker
-        sleep 2
-        rm -rf /var/lib/docker/network/files/*
-        systemctl start docker
-      when: docker_test.rc != 0
-      ignore_errors: yes
-
-    - name: Final Docker check
-      command: docker ps
-      retries: 3
-      delay: 5
-      register: docker_final
-      until: docker_final.rc == 0
-      ignore_errors: yes
-
-    - name: Stop existing application container (if running)
+    - name: Stop and remove existing application container
       docker_container:
         name: eduattend-app
         state: absent
-      ignore_errors: yes
-
-    - name: Verify application code exists
-      stat:
-        path: "{{ app_directory }}/repo/Dockerfile"
-      register: dockerfile_check
-
-    - name: Display code status
-      debug:
-        msg: "Application code {{ 'found' if dockerfile_check.stat.exists else 'NOT FOUND - deployment may fail' }}"
 
     - name: Create environment variables file
       copy:
@@ -82,14 +33,10 @@
         tag: latest
         build:
           path: "{{ app_directory }}/repo"
-          pull: yes
+          pull: no
         source: build
         force_source: yes
         state: present
-      retries: 2
-      delay: 10
-      register: build_result
-      ignore_errors: yes
 
     - name: Run application container
       docker_container:
@@ -100,16 +47,12 @@
         ports:
           - "8000:8000"
         env_file: "{{ app_directory }}/app.env"
-      retries: 2
-      delay: 5
-      ignore_errors: yes
 
     - name: Wait for application to start
       wait_for:
         port: 8000
-        delay: 5
-        timeout: 120
-      ignore_errors: yes
+        delay: 10
+        timeout: 180
 
     - name: Check application health
       uri:
@@ -117,10 +60,9 @@
         status_code: 200,302
         timeout: 30
       register: health_check
-      retries: 5
+      retries: 3
       delay: 10
       until: health_check.status in [200, 302]
-      ignore_errors: yes
 
     - name: Display deployment success message
       debug:

@@ -29,9 +29,6 @@ RUN pip install --upgrade pip && \
 # Copy project
 COPY . .
 
-# Collect static at build time; media will be handled by storage backend
-RUN python manage.py collectstatic --noinput
-
 # Ensure media directory exists and is writable by any runtime user
 USER root
 # Ensure app files are owned by runtime user and media folder exists

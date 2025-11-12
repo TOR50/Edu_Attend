@@ -2,6 +2,7 @@
 set -euo pipefail
 
 /opt/conda/bin/python manage.py migrate --noinput
+/opt/conda/bin/python manage.py collectstatic --noinput
 
 # Optionally create a superuser on first run if env vars provided
 if [[ -n "${DJANGO_SUPERUSER_USERNAME:-}" ]] && [[ -n "${DJANGO_SUPERUSER_PASSWORD:-}" ]]; then
