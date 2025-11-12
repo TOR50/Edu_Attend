@@ -64,25 +64,73 @@ jobs:
         if: github.event.inputs.terraform_action == 'apply'
         working-directory: terraform
         run: |
-          echo "Checking if resource group already exists in Azure..."
-          RG_EXISTS=$(az group exists --name eduattend-devops-rg)
+          echo "Checking and importing existing Azure resources..."
+          SUBSCRIPTION_ID="${{ secrets.AZURE_SUBSCRIPTION_ID }}"
           
-          if [ "$RG_EXISTS" = "true" ]; then
-            echo "Resource group exists in Azure. Checking Terraform state..."
+          # Function to import resource if it exists in Azure but not in Terraform state
+          import_if_needed() {
+            local tf_resource="$1"
+            local azure_id="$2"
             
-            # Check if resource is already in state
-            if terraform state list | grep -q "azurerm_resource_group.eduattend"; then
-              echo "Resource group already in Terraform state, skipping import..."
+            if terraform state list | grep -q "$tf_resource"; then
+              echo "✓ $tf_resource already in state"
             else
-              echo "Importing resource group into Terraform state..."
-              terraform import \
-                azurerm_resource_group.eduattend \
-                /subscriptions/${{ secrets.AZURE_SUBSCRIPTION_ID }}/resourceGroups/eduattend-devops-rg \
-                || echo "Import failed or resource already managed"
+              echo "→ Importing $tf_resource..."
+              terraform import "$tf_resource" "$azure_id" 2>&1 | grep -v "Acquiring state lock" || echo "  Import completed"
             fi
-          else
-            echo "Resource group does not exist, will be created by Terraform..."
-          fi
+          }
+          
+          # Import Resource Group
+          import_if_needed \
+            "azurerm_resource_group.eduattend" \
+            "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/eduattend-devops-rg"
+          
+          # Import Virtual Network
+          import_if_needed \
+            "azurerm_virtual_network.eduattend_vnet" \
+            "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/eduattend-devops-rg/providers/Microsoft.Network/virtualNetworks/eduattend-demo-vnet"
+          
+          # Import Public IP
+          import_if_needed \
+            "azurerm_public_ip.eduattend_public_ip" \
+            "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/eduattend-devops-rg/providers/Microsoft.Network/publicIPAddresses/eduattend-demo-public-ip"
+          
+          # Import Network Security Group
+          import_if_needed \
+            "azurerm_network_security_group.eduattend_nsg" \
+            "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/eduattend-devops-rg/providers/Microsoft.Network/networkSecurityGroups/eduattend-demo-nsg"
+          
+          # Import Subnet
+          import_if_needed \
+            "azurerm_subnet.eduattend_subnet" \
+            "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/eduattend-devops-rg/providers/Microsoft.Network/virtualNetworks/eduattend-demo-vnet/subnets/eduattend-demo-subnet"
+          
+          # Import Storage Account
+          import_if_needed \
+            "azurerm_storage_account.eduattend_storage" \
+            "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/eduattend-devops-rg/providers/Microsoft.Storage/storageAccounts/eduattenddemostorage"
+          
+          # Import Network Interface (if exists)
+          import_if_needed \
+            "azurerm_network_interface.eduattend_nic" \
+            "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/eduattend-devops-rg/providers/Microsoft.Network/networkInterfaces/eduattend-demo-nic"
+          
+          # Import NSG Association (if exists)
+          import_if_needed \
+            "azurerm_network_interface_security_group_association.eduattend_nsg_assoc" \
+            "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/eduattend-devops-rg/providers/Microsoft.Network/networkInterfaces/eduattend-demo-nic|/subscriptions/$SUBSCRIPTION_ID/resourceGroups/eduattend-devops-rg/providers/Microsoft.Network/networkSecurityGroups/eduattend-demo-nsg"
+          
+          # Import VM (if exists)
+          import_if_needed \
+            "azurerm_linux_virtual_machine.eduattend_vm" \
+            "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/eduattend-devops-rg/providers/Microsoft.Compute/virtualMachines/eduattend-demo-vm"
+          
+          # Import Storage Container (if exists)
+          import_if_needed \
+            "azurerm_storage_container.backups" \
+            "https://eduattenddemostorage.blob.core.windows.net/backups"
+          
+          echo "✓ Import process completed"
 
       - name: Terraform Refresh
         working-directory: terraform
