@@ -103,13 +103,12 @@
         creates: "{{ nagios_install_dir }}/libexec/check_http"
 
     - name: Create Nagios admin user
-      htpasswd:
-        path: "{{ nagios_install_dir }}/etc/htpasswd.users"
-        name: nagiosadmin
-        password: "{{ nagios_admin_password }}"
-        owner: root
-        group: www-data
-        mode: '0640'
+      shell: |
+        htpasswd -bc "{{ nagios_install_dir }}/etc/htpasswd.users" nagiosadmin "{{ nagios_admin_password }}"
+        chown root:www-data "{{ nagios_install_dir }}/etc/htpasswd.users"
+        chmod 640 "{{ nagios_install_dir }}/etc/htpasswd.users"
+      args:
+        creates: "{{ nagios_install_dir }}/etc/htpasswd.users"
 
     - name: Configure Apache for Nagios
       apache2_module:
