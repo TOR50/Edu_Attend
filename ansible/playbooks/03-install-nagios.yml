@@ -36,6 +36,7 @@
           - make
           - wget
           - apache2-utils
+          - python3-passlib
         state: present
 
     - name: Create Nagios user and group
