@@ -65,6 +65,16 @@ jobs:
         run: terraform plan -out=tfplan
         continue-on-error: false
 
+      - name: Pre-Apply Cleanup (Remove existing state conflicts)
+        if: github.event.inputs.terraform_action == 'apply'
+        working-directory: terraform
+        run: |
+          # If resource group already exists, import it into state
+          if az group exists --name eduattend-devops-rg | grep -q true; then
+            echo "Resource group exists, attempting import..."
+            terraform import -auto-approve azurerm_resource_group.eduattend /subscriptions/${{ secrets.AZURE_SUBSCRIPTION_ID }}/resourceGroups/eduattend-devops-rg || true
+          fi
+
       - name: Upload Terraform Plan
         uses: actions/upload-artifact@v4
         with:
@@ -74,7 +84,9 @@ jobs:
       - name: Terraform Apply
         if: github.event.inputs.terraform_action == 'apply'
         working-directory: terraform
-        run: terraform apply -auto-approve tfplan
+        run: |
+          # Refresh state to import any existing resources
+          terraform apply -auto-approve tfplan
 
       - name: Terraform Destroy
         if: github.event.inputs.terraform_action == 'destroy'
