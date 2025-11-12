@@ -147,7 +147,8 @@ jobs:
       - name: Update Ansible Inventory
         working-directory: ansible
         run: |
-          sed -i "s/REPLACE_WITH_VM_IP/${{ steps.read_ip.outputs.vm_ip }}/g" inventory/azure_hosts.yml
+          sed -i "s|REPLACE_WITH_VM_IP|${{ steps.read_ip.outputs.vm_ip }}|g" inventory/azure_hosts.yml
+          sed -i "s|ansible_ssh_private_key_file:.*|ansible_ssh_private_key_file: ~/.ssh/azure_vm_key|g" inventory/azure_hosts.yml
           cat inventory/azure_hosts.yml
 
       - name: Test Ansible Connection
@@ -224,7 +225,8 @@ jobs:
       - name: Update Ansible Inventory
         working-directory: ansible
         run: |
-          sed -i "s/REPLACE_WITH_VM_IP/${{ steps.read_ip.outputs.vm_ip }}/g" inventory/azure_hosts.yml
+          sed -i "s|REPLACE_WITH_VM_IP|${{ steps.read_ip.outputs.vm_ip }}|g" inventory/azure_hosts.yml
+          sed -i "s|ansible_ssh_private_key_file:.*|ansible_ssh_private_key_file: ~/.ssh/azure_vm_key|g" inventory/azure_hosts.yml
 
       - name: Run Nagios Installation
         working-directory: ansible
