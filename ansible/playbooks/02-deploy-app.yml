@@ -8,11 +8,43 @@
   gather_facts: yes
 
   tasks:
-    - name: Ensure Docker daemon is running
+    - name: Restart Docker daemon to ensure it's running properly
       systemd:
         name: docker
-        state: started
+        state: restarted
+        daemon_reload: yes
         enabled: yes
+      ignore_errors: yes
+
+    - name: Wait for Docker daemon to be ready
+      pause:
+        seconds: 10
+
+    - name: Verify Docker is working
+      command: docker ps
+      register: docker_test
+      ignore_errors: yes
+      changed_when: false
+
+    - name: Display Docker status
+      debug:
+        msg: "Docker status: {{ 'Running' if docker_test.rc == 0 else 'Not running - will attempt to fix' }}"
+
+    - name: Force restart Docker if not working
+      shell: |
+        systemctl stop docker
+        sleep 2
+        rm -rf /var/lib/docker/network/files/*
+        systemctl start docker
+      when: docker_test.rc != 0
+      ignore_errors: yes
+
+    - name: Final Docker check
+      command: docker ps
+      retries: 3
+      delay: 5
+      register: docker_final
+      until: docker_final.rc == 0
       ignore_errors: yes
 
     - name: Stop existing application container (if running)
@@ -21,14 +53,14 @@
         state: absent
       ignore_errors: yes
 
-    - name: Clone application repository
-      git:
-        repo: 'https://github.com/TOR50/Capstone_KC739_CSE399.git'
-        dest: "{{ app_directory }}/repo"
-        version: main
-        force: yes
-      retries: 3
-      delay: 5
+    - name: Verify application code exists
+      stat:
+        path: "{{ app_directory }}/repo/Dockerfile"
+      register: dockerfile_check
+
+    - name: Display code status
+      debug:
+        msg: "Application code {{ 'found' if dockerfile_check.stat.exists else 'NOT FOUND - deployment may fail' }}"
 
     - name: Create environment variables file
       copy:

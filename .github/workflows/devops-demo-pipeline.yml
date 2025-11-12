@@ -244,6 +244,18 @@ jobs:
         run: |
           ansible-playbook -i inventory/azure_hosts.yml playbooks/01-setup-vm.yml
 
+      - name: Copy application code to VM
+        run: |
+          VM_IP=$(cat outputs/vm_ip.txt)
+          rsync -avz -e "ssh -i ~/.ssh/azure_vm_key -o StrictHostKeyChecking=no" \
+            --exclude='.git' \
+            --exclude='__pycache__' \
+            --exclude='*.pyc' \
+            --exclude='venv' \
+            --exclude='node_modules' \
+            --exclude='media/students' \
+            ./ azureuser@$VM_IP:/home/azureuser/eduattend/repo/
+
       - name: Run Application Deployment
         working-directory: ansible
         env:
