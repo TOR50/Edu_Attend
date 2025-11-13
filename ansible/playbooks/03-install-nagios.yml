@@ -143,10 +143,11 @@
               host_name               eduattend-render
               alias                   EduAttend on Render
               address                 edu-attend.onrender.com
-              max_check_attempts      3
+              max_check_attempts      5
               check_period            24x7
               notification_interval   30
               notification_period     24x7
+              check_interval          10
           }
           
           # Host definition for Azure deployment
@@ -155,30 +156,47 @@
               host_name               eduattend-azure
               alias                   EduAttend on Azure
               address                 {{ ansible_host }}
-              max_check_attempts      3
+              max_check_attempts      5
               check_period            24x7
               notification_interval   30
               notification_period     24x7
+              check_interval          10
           }
           
           # Service: Ping check for Render
           define service {
               use                     generic-service
               host_name               eduattend-render
-              service_description     Ping
-              check_command           check_ping!100.0,20%!500.0,60%
+              service_description     Ping Check
+              check_command           check_ping!200.0,40%!500.0,80%
               check_interval          10
               retry_interval          2
+              max_check_attempts      4
+              notification_interval   30
           }
           
           # Service: Ping check for Azure
           define service {
               use                     generic-service
               host_name               eduattend-azure
-              service_description     Ping
-              check_command           check_ping!100.0,20%!500.0,60%
+              service_description     Ping Check
+              check_command           check_ping!200.0,40%!500.0,80%
               check_interval          10
               retry_interval          2
+              max_check_attempts      4
+              notification_interval   30
+          }
+          
+          # Service: HTTP Application Check for Azure
+          define service {
+              use                     generic-service
+              host_name               eduattend-azure
+              service_description     HTTP Application
+              check_command           check_http
+              check_interval          10
+              retry_interval          2
+              max_check_attempts      3
+              notification_interval   30
           }
 
     - name: Add EduAttend config to nagios.cfg
