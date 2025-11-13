@@ -20,6 +20,23 @@
         delay: 2
         timeout: 30
 
+    - name: Verify Docker daemon is responsive
+      shell: |
+        for i in {1..10}; do
+          if docker ps > /dev/null 2>&1; then
+            echo "Docker is ready"
+            exit 0
+          fi
+          echo "Attempt $i: Waiting for Docker daemon..."
+          sleep 3
+        done
+        echo "Docker failed to respond"
+        exit 1
+      retries: 3
+      delay: 5
+      register: docker_check
+      until: docker_check.rc == 0
+
     - name: Stop and remove existing application container
       docker_container:
         name: eduattend-app

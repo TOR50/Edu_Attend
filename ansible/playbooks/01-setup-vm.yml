@@ -77,10 +77,20 @@
         timeout: 30
 
     - name: Verify Docker is working
-      command: docker ps
-      register: docker_verify
-      retries: 5
+      shell: |
+        for i in {1..10}; do
+          if docker ps > /dev/null 2>&1; then
+            echo "Docker is ready"
+            exit 0
+          fi
+          echo "Attempt $i: Waiting for Docker daemon..."
+          sleep 3
+        done
+        echo "Docker failed to respond"
+        exit 1
+      retries: 3
       delay: 5
+      register: docker_verify
       until: docker_verify.rc == 0
 
     - name: Configure UFW firewall - Allow SSH
