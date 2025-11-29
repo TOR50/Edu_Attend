@@ -119,6 +119,3 @@ Static and media:
 
 Small fixes and improvements are welcome. Please open an issue or a PR with a clear description and minimal repro.
 
-## License
-
-Add a LICENSE file to clarify terms for use and distribution (e.g., MIT).
