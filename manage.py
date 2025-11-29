@@ -2,6 +2,9 @@
 import os
 import sys
 
+# Ensure interpreter-level patches (e.g., importlib fixes) are applied early.
+import sitecustomize  # noqa: F401
+
 def main():
     os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
     from django.core.management import execute_from_command_line

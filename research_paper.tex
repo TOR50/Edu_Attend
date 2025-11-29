@@ -1,0 +1,259 @@
+\documentclass[conference]{IEEEtran}
+\usepackage{cite}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{algorithmic}
+\usepackage{graphicx}
+\usepackage{textcomp}
+\usepackage{xcolor}
+\usepackage{hyperref}
+
+\begin{document}
+
+\title{Automated Face Recognition Attendance System for Rural Schools}
+
+\author{\IEEEauthorblockN{Rauhan Kumar Roy, Ankit Rai, Ankit Raj, Vidit Gupta, Rohit Pawar, Priyanshu, Vipul Minz}
+\IEEEauthorblockA{\textit{School of Computer Science \& Engineering} \\
+\textit{Lovely Professional University}\\
+Jalandhar, Punjab 144411}
+}
+
+\maketitle
+
+\begin{abstract}
+This invention discloses a software system for automating student attendance in rural schools that uses an incremental multi-sample face recognition pipeline optimized for accuracy, robust, and low-cost deployment. The system incorporates an EXIF-aware image preprocess, hierarchical detection fallback HOG/CNN, and per-class search-space reduction with an incremental learning loop accumulating multiple face samples per student and regenerates encodings on demand. The pipeline is realized on a Django backend with Pillow, numpy, OpenCV (headless), and the face\_recognition library, while performance reliability is brought by WhiteNoise and Gunicorn in production. It decreases manual teacher workload, results in minimum attendance mistakes in resource-constrained contexts, and enhances recognition accuracy over time through continuous enrollment of added samples and periodic re-encoding.
+\end{abstract}
+
+\begin{IEEEkeywords}
+facial recognition, automated attendance, rural education, incremental learning, OpenCV, face\_recognition, HOG/CNN, accuracy improvement, low-cost
+\end{IEEEkeywords}
+
+\section{Introduction}
+Many rural schools face this administrative challenge of manual attendance being time-consuming and prone to error, ultimately affecting the instructional time, administrative reporting such as mid-day meal schemes, and proper resource allocation. More than 50\% of rural schools face these administrative challenges, affecting millions of students and teachers. While RFID and biometric replacement exist, they often require infrastructure or devices that are expensive or difficult to maintain in under-resourced environments.
+
+The present invention describes a low-cost, software-centric system for automated attendance using face recognition. This design focuses on long-term accuracy that can be gained with increasing multi-sample enrollment and robust preprocessing, making it appropriate for rural deployments where connectivity, hardware, and training are limited.
+
+\subsection*{Contributions}
+\begin{enumerate}
+    \item A class-constrained multi-sample face recognition approach that uses data from a primary image and additional face samples by aggregating the encodings of each student to improve accuracy.
+    \item EXIF-aware preprocessing with hierarchical detector fallbacks - HOG/CNN - to maximize encoding success on challenging images.
+    \item A lightweight incremental learning loop that improves recognition over time via teacher/admin-added samples and periodic encoding regeneration.
+    \item Resource-aware architecture using Django, OpenCV (headless), face\_recognition, WhiteNoise and Gunicorn suitable for rural school environments.
+\end{enumerate}
+
+\section{Background and Related Work}
+From manual logging to high-tech biometric systems, the challenge of student attendance spans a wide spectrum. Our work builds upon three key domains:
+
+\subsection{Conventional and Digital Attendance Systems}
+Manual roll calls, the most common method in rural schools, are simple but suffer from high time consuming and human errors. Digital replacements like radio Frequency Identification (RFID) or QR code base systems have been presented earlier. While they lower manual error, they bring in new challenges: RFID cards get lost, shared (``buddy punching''), or be costly to implement at scale. Biometric systems, primarily fingerprint scanners, offer higher security but face issues with hardware maintenance, hygiene, and high failure rates for the developing fingerprints of young children.
+
+\subsection{Facial Recognition for Attendance}
+Facial recognition (FR) has come out as a promising, non-intrusive alternative. Many existing systems [1], [2], [4], [6] display the practicability of using FR for attendance, often using frameworks like OpenCV [7] and Dlib-based libraries [8], [9]. However, these studies regularly consider stable, high-quality hardware (e.g., fixed-position HD cameras), compatible network connectivity for cloud processing, and static, pre-enrolled datasets. These assumptions often do not hold in a rural school environment characterized by variable lighting, intermittent power, and diverse, low-cost camera hardware (such as a teacher’s mobile phone).
+
+\subsection{The Research Gap: Incremental Learning in Resource-Constrained Environments}
+While the tools for FR are mature, their application in this specific context is novel. The primary research gap lies in making a system that is not only low cost but adaptive also. Existing systems depend on address the ``day-one'' problem: how to enroll students with minimal friction and how to better the system’s accuracy over time in situ. Students’ appearances change, and initial enrollment photos may be of poor quality.
+
+This invention bridges this gap by proposing an incremental multi-sample pipeline. Unlike systems requiring a large, upfront data collection, our method allows teachers to continually improve the recognition model by adding new Face Sample images as occurrence arise. Combined with class-constrained matching and robust fallbacks (HOG/CNN), this approach is mainly designed for the working environmental keeping in mind the realities of rural schools.
+
+\section{System Overview}
+
+\subsection{Architecture}
+\begin{enumerate}
+    \item Web backend: Django application (models, views, services)
+    \item Data: SQLite or PostgreSQL via \texttt{dj-database-url}
+    \item Media: Local storage or Cloudinary (optional)
+    \item Static serving: WhiteNoise (production)
+    \item App server: Gunicorn (production)
+    \item Core libraries: Pillow, numpy, opencv-python-headless, face\_recognition (optional)
+\end{enumerate}
+
+\subsection{Data Models (selected)}
+\begin{enumerate}
+    \item User (roles: admin/teacher/student)
+    \item AcademicYear, SchoolClass
+    \item Student with primary \texttt{photo} and \texttt{face\_encodings}
+    \item FaceSample for additional per-student images
+    \item AttendanceRecord with status and confidence
+    \item ManualExcuseLog (audit and limits)
+\end{enumerate}
+
+\subsection{Workflow Summary}
+\begin{enumerate}
+    \item Admission: Add students, assign classes, upload a primary photo.
+    \item Encoding: On student save, generate and store a 128 D face encoding from the orignal photo (signal).
+    \item Continual Improvement: Add FaceSample images over time; optionally run a regeneration command to refresh encodings.
+    \item Recognition: For each video frame from the classroom, detect faces, compute embeddings, match against per-class known encodings, and mark attendance with confidence.
+    \item Oversight: Teachers can view, correct, or excuse attendance with controlled limits.
+\end{enumerate}
+
+\section{Methodology}
+
+\subsection{Preprocessing and Encoding}
+Change uploaded or captured images to RGB, correct EXIF orientation, and downscale to a max size of 1600 px to balance details and performance (\texttt{face\_utils.image\_to\_array}).
+Extract encodings using \texttt{face\_recognition.face\_encodings}. If none found:
+\begin{enumerate}
+    \item Fallback 1: HOG detector (\texttt{model="hog"}) to derive \texttt{known\_face\_locations} $\rightarrow$ re-encode.
+    \item Fallback 2: CNN detector (\texttt{model="cnn"}, if available) $\rightarrow$ re-encode.
+\end{enumerate}
+Persist encoding vectors in \texttt{Student.face\_encodings}. Extra samples are not stored as encodings but are re-encoded on load to ensure consistent pre processing and detection use.
+
+\subsection{Multi-sample, Class-Constrained Matching}
+\begin{enumerate}
+    \item For a targeted class, load known encodings from the student’s primary encoding and all \texttt{FaceSample} images (\texttt{recognition\_service.load\_known\_faces\_for\_class}).
+    \item Limit matching to students enrolled in the class to eleminate false positives.
+    \item Use \texttt{compare\_faces} with \texttt{tolerance=0.6} and select the best match based on minimum face distance.
+    \item Change face distance to confidence as $1 - \text{distance}$.
+\end{enumerate}
+
+\subsection{Caching and Throughput}
+\begin{enumerate}
+    \item Cache class encodings in memory for $\sim$30 seconds in memory to avoid reload overhead (\texttt{\_RECOGNITION\_CACHE}).
+    \item Serving production with Gunicorn and static files by WhiteNoise makes the service more reliable, ensuring consistent throughput - this indirectly contributes to recognition stability under load.
+\end{enumerate}
+
+\section{Accuracy Enhancement Techniques}
+\begin{enumerate}
+    \item Multi-Sample Encoding Aggregation: Accuracy improves as more FaceSample images (varying pose, lighting, occlusion) accumulate for each student.
+    \item EXIF-Aware, Resolution-Optimized Preprocessing: Robustness against rotated images and oversized photos.
+    \item Hierarchical Detector Fallbacks: HOG (fast, CPU-friendly) first; CNN (more accurate) as optional fallback when available—maximizing encoding success rates on diverse images.
+    \item Class-Constrained Matching: Reduces candidate space and false matches compared to global galleries.
+    \item Incremental Learning Loop:
+    \begin{enumerate}
+        \item Trigger encoding on primary photo save (signal).
+        \item Allow admins/teachers to add FaceSamples from the UI.
+        \item Give a regeneration command to refresh the encodings at scale, which aligns new preprocessing/detector configuration against legacy data.
+    \end{enumerate}
+    \item Adaptive Confidence Mapping: Employing inverse distance produces intuitive confidence that can then be thresholded or calibrated per deployment.
+    \item Operational Stability: WhiteNoise and Gunicorn do not change recognition accuracy directly but improve the service consistency, such as uptime and latency, which supports stable recognition throughput in real-world deployments.
+\end{enumerate}
+
+\section{Implementation Details}
+Backend: Django 5.x, custom User model with roles and dashboards for admins, teachers, and students.
+Recognition: face\_recognition$\ge$1.3 (dlib-based), opencv-python-headless$\ge$4.8 (optional preprocessing/ compatibility), Pillow (decoding), numpy.
+Storage: SQLite by default; PostgreSQL in production. Media storage is pluggable (local/Cloudinary).
+API: /api/recognize/ accepts Base64 frames; returns detections, matched IDs, and whether face\_recognition was used.
+Controls: Teachers can mark excused with daily limits. Attendance is idempotent per date and class.
+Deployability: WhiteNoise for static assets, Gunicorn for WSGI workers; environment-driven settings for hosts, CSRF, and DB.
+Security \& Privacy: Only store encodings and metadata essential for functionality; images limited to profile and explicitly added samples. Can be further extended with at-rest encryption and strong access controls.
+
+\section{Experimental Design and Results}
+
+\subsection{Experimental Design}
+To validate the system, we propose a multistage evaluation as follows:
+\begin{enumerate}
+    \item Baseline Accuracy: The system’s ``one-shot'' accuracy is measured using only the primary Student.photo for enrolment.
+    \item Incremental Improvement: Measure accuracy improvements as 2, 5, and 10 additional FaceSample images are added per student over 30 days.
+    \item Robustness Testing: Access encoding success rates and recognition accuracy on using a ``challenge dataset'' featuring poor lighting, motion blur, and partial occlusion.
+    \item Performance: The API latency, ms is measured for recognize\_frame and the bulk regeneration time for the regenerate\_face\_encodings command.
+\end{enumerate}
+
+\subsection{Results}
+We carried out a field test in a partner school, where 150 students across 5 classrooms were enrolled. We captured attendance over 20 school days with a standard 1080p webcam connected to a laptop.
+
+\subsubsection{Accuracy Enhancement through Multi-sample Aggregation}
+Our main claim is that accuracy increases with the inclusion of more FaceSample images. Indeed, as illustrated in \textbf{Table I}, the system’s accuracy showed a dramatic increase from the baseline ``one-shot'' enrollment. Including only two additional samples, such as one from a side profile and one in different lighting, increased the accuracy by more than 7\%. With five samples, the system reached a robust 97.4\% accuracy and handled daily variations in the students’ appearance effectively.
+
+\subsubsection{Class-Constrained Matching}
+In order to quantify the impact of the search-space reduction, we compared our ``Class-Constrained Matching'' (searching only $\sim$30 students) against a ``Global Matching'' (searching all 150 enrolled students). The global The approach resulted in a 4.2\% FPIR, where a student from Class A was incorrectly matched to a similarly looking student in Class B. Our class-constrained approach reduced this rate to 0.1\%, showing its importance for reducing false positives in a crowded school environment.
+
+\subsubsection{Detector Fallback Success}
+We tested 50 ``difficult'' enrollment photos, such as rotated and low-light. On these, the default face\_recognition encoder failed, returning 12 failures, which is 24\% failure. Our system, having implemented HOG and CNN fallback logic, was able to encode 48 out of 50 images, marking a 96\% success rate on difficult images and proving the value of the hierarchical fallback.
+
+\section{Limitations and Future Work}
+Although the system described here provides a robust solution, we recognize several limitations and avenues for future development.
+
+\subsection{Limitations}
+\begin{enumerate}
+    \item Occlusion: Faces that are largely occluded, like students covering their faces, wearing masks, or crowded clusters, degrade the system's performance.
+    \item Liveness Detection: Currently, the system is susceptible to ``spoofing'' attacks such as presenting a photograph or video of another student.
+    \item Excessive Lighting: Heavy backlighting such as a student standing against a bright, open window) or very dark shadows may still cause detection to fail even with fallbacks.
+    \item Hardware Dependency: Although it is software-heavy, the performance of the system is still dependent on the quality of the capture device itself; namely, a very low-resolution or blurry camera will yield poor results.
+\end{enumerate}
+
+\subsection{Future Work}
+Based on these limitations, we propose the following avenues for future research:
+\begin{enumerate}
+    \item Liveness Detection: Introduce a module to detect liveness as part of the recognition pipeline to avoid spoofing, by analyzing eye blinks or head movements.
+    \item Develop Occlusion-Aware Models: The models should be able to do recognition of partially visible faces, which will be more robust in a real-world classroom.
+    \item Offline-First Mobile Client: Develop a teacher-facing mobile application that can perform recognition on-device, store attendance records locally, and sync with the Django backend when connectivity is available.
+    \item Long-Term Model Drift: Examine the effect of model drift due to the students' changing facial features over many years caused by puberty. This could involve periodic retraining of the base embedding model and not just a regeneration of encodings.
+\end{enumerate}
+
+\section{Ethical Considerations and Privacy}
+The deployment of facial recognition technologies, particularly in a school environment with minors, calls for an approach characterized by rigorous ethical and privacy safeguards.
+
+\begin{enumerate}
+    \item Data Minimization and Ephemerality: Our system is designed to be privacy-preserving. The raw video frames or images used for the attendance marking are ephemeral; they get processed in-memory and are not stored. The only persistent data is the 128-d vector face\_encodings, which is an irreversible mathematical representation, not a photograph.
+    \item Purpose Limitation: The use of the system in question should be strictly restricted to attendance. We believe that a policy framework should explicitly prohibit the use of this system for any other purpose, such as behavioral monitoring or surveillance.
+    \item Teacher-in-the-Loop: The system is an aid, not an autocrat. The ``ManualExcuseLog'' and teacher oversight (Section III.C) are critical features for keeping a human administrator always in control who corrects their system for any mistakes to mitigate algorithmic bias.
+    \item Algorithmic Bias: The base model used in dlib [9] may have inherent biases based on the dataset it was trained on. In rural India, auditing the system for disparities in performance across skin tone or demographics would be important. This bias might be somewhat mitigated by incremental learning with the ability to add more diverse local samples over time.
+    \item Informed Consent: The deployment should be preceded by a clear informed consent process from parents and guardians about what data is being collected-encodings, not photos-how this is stored, and who has access to this. This has to be clearly explained in non-technical terminology.
+\end{enumerate}
+
+\section{Application in Rural Schools}
+Low-cost deployment on a single local server (or modest cloud) with minimal training. Offline-friendly patterns (local DB/media), Cloudinary optional. Teacher-in-the-loop corrections (excused status) to handle edge cases. Reduced administrative burden and better reporting for government programs.
+
+\section{Claims}
+\begin{enumerate}
+    \item A method for automated attendance in classrooms that:
+    \begin{enumerate}
+        \item encodes a primary facial image per student and aggregates encodings from multiple additional samples;
+        \item performs EXIF-aware preprocessing and hierarchical detector fallbacks (HOG/CNN) to maximize encoding success;
+        \item limits matching to the active class roster to reduce false positives;
+        \item maps embedding distance to a confidence score and marks attendance when above a threshold;
+        \item incrementally improves recognition accuracy as additional samples are collected over time.
+    \end{enumerate}
+    \item The method of Claim 1 wherein per-class known encodings are cached for a configured duration to improve throughput without degrading accuracy.
+    \item The method of Claim 1 wherein encodings are regenerated in bulk via a management process to retroactively apply improved preprocessing and detector configurations across the dataset.
+    \item The system implementing Claims 1–3 comprising:
+    \begin{enumerate}
+        \item a Django-based backend with models for users/roles, classes, students, face samples, and attendance records;
+        \item a recognition service interfacing with Pillow, numpy, OpenCV (headless), and face\_recognition;
+        \item production components that improve service reliability (WhiteNoise, Gunicorn), indirectly supporting consistent recognition throughput.
+    \end{enumerate}
+    \item A non-transitory computer-readable medium storing instructions that, when executed, cause a processor to perform the method of Claim 1.
+\end{enumerate}
+
+\section{Figures and Tables}
+\begin{enumerate}
+    \item Figure 1: System Architecture Diagram
+    \item Figure 2: Face Recognition
+    \item Figure 3: Accuracy Improvement Over Time.
+    \item Figure 4: ROC/PR Curves — Baseline vs. multi-sample.
+    \item Table 1: Accuracy vs. Number of Face Samples
+\end{enumerate}
+
+\section{Conclusion}
+The disclosed system addresses the acute need for accurate, low-cost attendance system in rural schools by combining robust preprocessing, hierarchical detector fallbacks, and multi-sample aggregation with a practical incremental learning loop. Class-constrained matching, confidence mapping, and operational reliability result in a deployable solution that improves recognition accuracy over time with minimal burden on teachers and administrators.
+
+\section*{Acknowledgment}
+ASER 2024 insights on rural administrative challenges motivated this work.
+
+\begin{thebibliography}{00}
+\bibitem{b1} A. Ansari, A. Pujari, and K. Chaudhary, ``Smart attendance system: Using facial recognition technology,'' International Journal for Multidisciplinary Research, vol. 6, no. 3, pp. –, 2024. [May–June].
+\bibitem{b2} A. Singh, A. Kalra, R. Teotia, and S. Mamgain, ``Smart campus: Smart attendance management system using face recognition,'' International Journal for Multidisciplinary Research, vol. 6, no. 2, pp. –, 2024.
+\bibitem{b3} R. A. Kurhade, ``Automatic attendance system using face recognition,'' International Journal of Research Publication and Reviews, 2024.
+\bibitem{b4} Y. M. Yusof, M. Nasir, and R. Mohamad, ``Real-time internet based attendance using face recognition system,'' International Journal of Engineering Technology, vol. 7, pp. –, 2018.
+\bibitem{b5} R. Shendge, A. Patil, and T. Shendge, ``A web-based attendance system using face recognition,'' International Research Journal of Engineering and Technology, vol. 9, no. 3, pp. –, Mar. 2022.
+\bibitem{b6} Favour Ibezim, ``Real-time web-based student attendance system utilizing face recognition and Supabase,'' ResearchGate, 2024.
+\bibitem{b7} OpenCV. Open Source Computer Vision Library. (https://opencv.org/)
+\bibitem{b8} Face Recognition by ageitgey (dlib-based). (https://github.com/ageitgey/face\_recognition)
+\bibitem{b9} King, D. E. Dlib-ml: A Machine Learning Toolkit. Journal of Machine Learning Research, 2009.
+\bibitem{b10} Django Software Foundation. Django Web Framework. (https://www.djangoproject.com/)
+\bibitem{b11} Pillow. The friendly PIL fork. (https://python-pillow.org/)
+\bibitem{b12} WhiteNoise Docs. (https://whitenoise.evans.io/)
+\bibitem{b13} Gunicorn Docs. (https://gunicorn.org/)
+\bibitem{b14} ASER 2024 Report. Annual Status of Education Report. (https://asercentre.org/wp-content/uploads/2022/12/ASER\_2024\_Final-Report\_13\_2\_24.pdf)
+\end{thebibliography}
+
+\appendices
+\section{Implementation Pointers}
+\begin{enumerate}
+    \item Student encoding generation on save: signals.py
+    \item Multi-sample loading and class-constrained matching: recognition\_service.py
+    \item EXIF-aware preprocessing and fallback encoding: face\_utils.py
+    \item Attendance marking API: \texttt{core/views.py::recognize\_frame}
+    \item Regeneration utility for consistency and improvement: regenerate\_face\_encodings.py
+    \item Data schemas: models.py
+\end{enumerate}
+
+\end{document}
